@@ -48,6 +48,45 @@ async function runTimezoneResolver(input: TimezoneInput): Promise<TimezoneResolu
 
 type OfflineCity = { description: string; placeId: string; latitude: number; longitude: number };
 
+function decodeChinaPlaceId(placeId: string): OfflineCity | null {
+  if (!placeId.startsWith("china:")) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(placeId.slice("china:".length), "base64url").toString("utf8")) as OfflineCity;
+    if (!payload.description || !Number.isFinite(payload.latitude) || !Number.isFinite(payload.longitude)) return null;
+    return { description: payload.description, placeId, latitude: payload.latitude, longitude: payload.longitude };
+  } catch {
+    return null;
+  }
+}
+
+async function runChinaCityLookup(query: string) {
+  const scriptPath = new URL("../scripts/china_city_lookup.py", import.meta.url).pathname;
+  return await new Promise<{ results?: OfflineCity[] }>((resolve, reject) => {
+    const child = spawn("python3", [scriptPath], { stdio: ["pipe", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => child.kill("SIGKILL"), 3_000);
+    child.stdout.on("data", chunk => { stdout += chunk.toString(); });
+    child.stderr.on("data", chunk => { stderr += chunk.toString(); });
+    child.on("error", error => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", code => {
+      clearTimeout(timer);
+      try {
+        const data = JSON.parse(stdout) as { error?: string; results?: OfflineCity[] };
+        if (code !== 0 || data.error) return reject(new Error(data.error || stderr || "China city lookup failed."));
+        resolve(data);
+      } catch {
+        reject(new Error(stderr || "China city lookup returned malformed data."));
+      }
+    });
+    child.stdin.write(JSON.stringify({ action: "search", query }));
+    child.stdin.end();
+  });
+}
+
 async function runCityLookup(payload: { action: "search"; query: string } | { action: "resolve"; placeName: string }) {
   const scriptPath = new URL("../scripts/city_lookup.py", import.meta.url).pathname;
   return await new Promise<{ results?: OfflineCity[]; result?: OfflineCity | null }>((resolve, reject) => {
@@ -80,6 +119,12 @@ type AutocompleteResponse = { predictions: Array<{ description: string; place_id
 
 export async function searchCities(query: string) {
   try {
+    const localChina = await runChinaCityLookup(query);
+    if (localChina.results?.length) return localChina.results.map(item => ({ description: item.description, placeId: item.placeId, types: ["locality", "china-local"] }));
+  } catch (error) {
+    console.warn("[Location] China city index unavailable; using the existing fallbacks.", error);
+  }
+  try {
     const response = await makeRequest<AutocompleteResponse>("/maps/api/place/autocomplete/json", { input: query, types: "(cities)" });
     return response.predictions.slice(0, 6).map(prediction => ({ description: prediction.description, placeId: prediction.place_id, types: prediction.types }));
   } catch (mapsError) {
@@ -94,6 +139,17 @@ export async function searchCities(query: string) {
 }
 
 export async function resolveCity(input: { placeId: string; queryLabel?: string; date: string; time: string; calendar: CalendarType }) {
+  const chinaCity = decodeChinaPlaceId(input.placeId);
+  if (chinaCity) {
+    const timezone = await runTimezoneResolver({
+      latitude: chinaCity.latitude,
+      longitude: chinaCity.longitude,
+      date: input.date,
+      time: input.time,
+      calendar: input.calendar,
+    });
+    return { placeName: chinaCity.description, latitude: chinaCity.latitude, longitude: chinaCity.longitude, ...timezone };
+  }
   let offline: { result?: OfflineCity | null } | null = null;
   if (input.placeId.startsWith("pyjhora:")) {
     try {
