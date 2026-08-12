@@ -145,6 +145,31 @@ docker run --rm -p 3000:3000 \
 
 生产环境请使用受管数据库、TLS 连接、强随机 `JWT_SECRET`、受限数据库权限和可信反向代理。不要把 `.env`、数据库密码、cookie 密钥或导出的客户 PDF 提交到 Git 仓库。
 
+### 一键启动应用与 MySQL
+
+项目包含 `docker-compose.yml`、MySQL 数据卷、迁移服务及安全的 `environment.example` 配置参考。先复制模板为本地 `.env` 并替换所有示例密码，再构建并启动；`migrate` 服务会在 MySQL 健康后应用 Drizzle 迁移，应用服务仅在迁移成功后启动。
+
+```bash
+cp environment.example .env
+# 编辑 .env：至少更换 MYSQL_PASSWORD、MYSQL_ROOT_PASSWORD 与 JWT_SECRET
+docker compose up --build -d
+docker compose ps
+```
+
+首次成功后，通过 [http://localhost:3000](http://localhost:3000) 访问应用。检查日志、停止服务及完全清除本地数据库的常用命令如下；最后一个命令会删除 MySQL 数据卷，请只在确定不再需要本地档案时执行。
+
+```bash
+docker compose logs -f app migrate db
+docker compose down
+docker compose down -v
+```
+
+## GitHub Actions
+
+`.github/workflows/ci.yml` 会在对 `main` 的推送与拉取请求中启动 MySQL 8.4 服务，安装 Node 22、Python 3.12、PyJHora、ReportLab 和中文字体，随后依次执行迁移、`pnpm test`、`pnpm check` 与 `pnpm build`。CI 所用数据库密码仅限临时测试服务，不能复制到部署环境。
+
+将仓库推送到 GitHub 后，可在仓库的 **Actions** 页面查看每次提交的验证结果；分支保护规则可要求该工作流通过后才允许合并。
+
 ## 使用工作台
 
 首先输入出生日期、当地时间、性别和出生地点。地点输入框优先使用中国城市轻量索引；选中城市后会回填坐标、IANA 时区和相应时点的 UTC 偏移。也可以手动填写纬度、经度和时区。点击“生成真实印度占星报告”后，可在标签页中查看星盘、Panchanga、Dasa、Yoga、Muhurta、Shadbala、Ashtakavarga 和过境。

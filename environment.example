@@ -1,0 +1,33 @@
+# Copy this file to .env before local Docker Compose or direct local deployment.
+# Do not commit real passwords, JWT secrets, API keys, or production URLs.
+
+# Application runtime
+NODE_ENV=production
+APP_PORT=3000
+PORT=3000
+
+# MySQL container configuration for docker compose.
+# Replace every sample password before any shared or production deployment.
+MYSQL_DATABASE=vedic_atlas
+MYSQL_USER=vedic_app
+MYSQL_PASSWORD=change_this_database_password
+MYSQL_ROOT_PASSWORD=change_this_root_password
+
+# Direct local development can use 127.0.0.1; Docker Compose derives its own
+# internal db hostname from MYSQL_* above, so this value is mainly a reference.
+DATABASE_URL=mysql://vedic_app:change_this_database_password@127.0.0.1:3306/vedic_atlas
+
+# Required for signed local username/password sessions. Generate with:
+# openssl rand -base64 48
+JWT_SECRET=replace_with_a_long_random_secret
+
+# Optional Manus OAuth compatibility configuration. Username/password login
+# does not require these values.
+VITE_APP_ID=
+OAUTH_SERVER_URL=
+OWNER_OPEN_ID=
+
+# Optional platform-provided service variables. The core PyJHora calculation
+# and local city CSV fallback do not require them.
+BUILT_IN_FORGE_API_URL=
+BUILT_IN_FORGE_API_KEY=

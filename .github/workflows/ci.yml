@@ -1,0 +1,79 @@
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test-build:
+    name: Test, type-check, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: mysql://vedic_app:vedic_ci_password@127.0.0.1:3306/vedic_atlas
+      JWT_SECRET: ci-only-not-for-production
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: vedic_atlas
+          MYSQL_USER: vedic_app
+          MYSQL_PASSWORD: vedic_ci_password
+          MYSQL_ROOT_PASSWORD: vedic_ci_root_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uvedic_app -pvedic_ci_password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system and Python dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-wqy-zenhei
+          python -m pip install --upgrade pip
+          python -m pip install \
+            PyJHora pyswisseph geocoder geopy numpy pytz requests \
+            timezonefinder reverse_geocode reportlab
+
+      - name: Install Node.js dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply database migrations
+        run: pnpm exec drizzle-kit migrate
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Type-check
+        run: pnpm check
+
+      - name: Build production bundle
+        run: pnpm build

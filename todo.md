@@ -77,3 +77,7 @@
 - [x] 补充档案 CRUD 失败的浏览器实测，记录错误提示、手动重试操作与成功回归
 - [x] 为档案 tRPC 路由补充数据库最终失败的安全响应回归测试
 - [x] 编写项目 README，说明依赖、开发、测试、构建、Docker 运行和 AGPL 合规要求
+- [x] 添加 GitHub Actions 工作流，在推送和拉取请求时执行自动测试、类型检查与构建
+- [x] 添加 docker-compose.yml，一键启动 Vedic Web Atlas 与 MySQL 并执行健康检查
+- [ ] 添加 .env.example，提供安全的本地与 Compose 部署变量参考（当前托管环境禁止直接写入该文件；已提供等效 environment.example）
+- [x] 添加 environment.example 作为可复制为 .env 的安全配置参考模板，并在 README/Compose 中引用
