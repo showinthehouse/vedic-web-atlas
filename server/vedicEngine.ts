@@ -12,7 +12,7 @@ export type VedicInput = {
   divisionalFactor: number;
 };
 
-export async function calculateVedicChart(input: VedicInput) {
+async function runVedicEngine(input: unknown) {
   const scriptPath = new URL("../scripts/vedic_engine.py", import.meta.url).pathname;
   const { stdout, stderr } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn("python3", [scriptPath], { stdio: ["pipe", "pipe", "pipe"] });
@@ -41,4 +41,12 @@ export async function calculateVedicChart(input: VedicInput) {
     throw new Error(String((data as { error: unknown }).error));
   }
   return data;
+}
+
+export async function calculateVedicChart(input: VedicInput) {
+  return runVedicEngine(input);
+}
+
+export async function calculateVedicCompatibility(left: VedicInput, right: VedicInput) {
+  return runVedicEngine({ mode: "compatibility", left, right });
 }

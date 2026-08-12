@@ -1,0 +1,13 @@
+{
+  "result": {
+    "engine": {"ayanamsa": "LAHIRI"},
+    "input": {"date": "1996-12-07", "time": "10:34", "placeName": "Chennai, India", "latitude": 13.0878, "longitude": 80.2785, "timezone": 5.5, "calendar": "GREGORIAN"},
+    "selectedChart": {"label": "D-1"},
+    "rasi": [{"body": "Sun", "sign": "Scorpio", "formattedDegree": "21°33′55″"}],
+    "panchanga": {"weekday": "Saturday", "tithi": {"paksha": "Krishna", "number": 12}, "nakshatra": {"name": "Chitra", "pada": 2}, "sunrise": "06:22", "sunset": "17:44"},
+    "vimsottari": [{"lord": "Rahu", "start": "1996-07-16", "end": "2014-07-16", "years": 18}],
+    "fineDasa": {"maha": "Rahu", "bhukti": "Rahu", "antara": "Rahu"},
+    "yogas": [],
+    "muhurta": {"abhijit": ["11:37", "12:22"], "rahuKalam": ["09:11", "10:35"]}
+  }
+}

@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . .
 
 RUN python3 -m pip install --break-system-packages --no-cache-dir \
-    PyJHora pyswisseph geocoder geopy numpy pytz requests timezonefinder reverse_geocode \
+    PyJHora pyswisseph geocoder geopy numpy pytz requests timezonefinder reverse_geocode reportlab \
     && npm install -g corepack@latest \
     && corepack pnpm install \
     && corepack pnpm run build

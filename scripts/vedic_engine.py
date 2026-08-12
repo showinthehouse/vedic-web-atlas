@@ -18,6 +18,7 @@ with contextlib.redirect_stdout(sys.stderr):
     from jhora.horoscope.chart import ashtakavarga
     from jhora.horoscope.chart import strength
     from jhora.horoscope.dhasa.graha import vimsottari
+    from jhora.horoscope.match import compatibility
     from jhora.panchanga import drik
 
 
@@ -122,6 +123,55 @@ def dasa_periods(jd, place):
     return periods
 
 
+def fine_dasa(jd, place):
+    maha = vimsottari.vimsottari_mahadasa(jd, place)
+    maha_lord = next((lord for lord, start in reversed(list(maha.items())) if start <= jd), list(maha.keys())[0])
+    maha_start = maha[maha_lord]
+    bhuktis = vimsottari._vimsottari_bhukti(maha_lord, maha_start)
+    bhukti_lord = next((lord for lord, start in reversed(list(bhuktis.items())) if start <= jd), list(bhuktis.keys())[0])
+    bhukti_start = bhuktis[bhukti_lord]
+    antaras = vimsottari._vimsottari_antara(maha_lord, bhukti_lord, bhukti_start)
+    antara_lord = next((lord for lord, start in reversed(list(antaras.items())) if start <= jd), list(antaras.keys())[0])
+    entries = []
+    pairs = list(antaras.items())
+    for index, (lord, start) in enumerate(pairs):
+        next_start = pairs[index + 1][1] if index + 1 < len(pairs) else start
+        entries.append({"lord": PLANETS.get(lord, str(lord)), "start": jd_to_iso(start), "end": jd_to_iso(next_start), "current": lord == antara_lord})
+    return {"maha": PLANETS.get(maha_lord, str(maha_lord)), "bhukti": PLANETS.get(bhukti_lord, str(bhukti_lord)), "antara": PLANETS.get(antara_lord, str(antara_lord)), "antaras": entries}
+
+
+def yoga_results(rasi):
+    signs = {item["body"]: item["signIndex"] for item in rasi}
+    def kendra(first, second): return (signs[first] - signs[second]) % 12 in [0, 3, 6, 9]
+    result = []
+    if signs.get("Sun") == signs.get("Mercury"):
+        result.append({"name": "Budha Aditya Yoga", "matched": True, "rule": "Sun and Mercury occupy the same Rasi."})
+    if "Jupiter" in signs and "Moon" in signs and kendra("Jupiter", "Moon"):
+        result.append({"name": "Gaja Kesari Yoga", "matched": True, "rule": "Jupiter is in a kendra from the Moon."})
+    if "Mars" in signs and "Moon" in signs and kendra("Mars", "Moon"):
+        result.append({"name": "Chandra Mangala Yoga", "matched": True, "rule": "Mars is in a kendra from the Moon."})
+    return result
+
+
+def muhurta_windows(jd, place):
+    return {
+        "abhijit": drik.abhijit_muhurta(jd, place),
+        "rahuKalam": drik.raahu_kaalam(jd, place),
+        "yamaganda": drik.yamaganda_kaalam(jd, place),
+        "gulikai": drik.gulikai_kaalam(jd, place),
+        "durmuhurtam": drik.durmuhurtam(jd, place),
+    }
+
+
+def compatibility_result(left, right):
+    left_nak = left["panchanga"]["nakshatra"]
+    right_nak = right["panchanga"]["nakshatra"]
+    ashta = compatibility.Ashtakoota(left_nak["number"], left_nak["pada"], right_nak["number"], right_nak["pada"])
+    values = ashta.compatibility_score()
+    labels = ["Varna", "Vashya", "Gana", "Tara", "Yoni", "Graha Maitri", "Bhakoot", "Nadi"]
+    return {"method": "Ashta Koota / North", "leftNakshatra": left_nak, "rightNakshatra": right_nak, "score": float(values[8]), "maximum": 36, "components": [{"name": labels[index], "score": float(values[index])} for index in range(8)], "additional": {"mahendra": bool(values[9]), "vedha": bool(values[10]), "rajju": bool(values[11]), "sthreeDheerga": bool(values[12])}}
+
+
 def shadbala_scores(jd, place):
     raw = strength.shad_bala(jd, place)
     total_virupas, total_rupas, is_strong = raw[6], raw[7], raw[8]
@@ -182,6 +232,9 @@ def compute(payload):
         "navamsa": navamsa,
         "panchanga": panchanga(jd, place),
         "vimsottari": dasa_periods(jd, place),
+        "fineDasa": fine_dasa(jd, place),
+        "yogas": yoga_results(rasi),
+        "muhurta": muhurta_windows(jd, place),
         "shadbala": shadbala_scores(jd, place),
         "sarvashtakavarga": sarvashtakavarga_scores(jd, place),
         "transits": chart_items(transit_jd, place, 1),
@@ -191,7 +244,12 @@ def compute(payload):
 def main():
     try:
         payload = json.load(sys.stdin)
-        print(json.dumps(compute(payload), ensure_ascii=False))
+        if payload.get("mode") == "compatibility":
+            left = compute(payload["left"])
+            right = compute(payload["right"])
+            print(json.dumps({"left": left, "right": right, "compatibility": compatibility_result(left, right)}, ensure_ascii=False))
+        else:
+            print(json.dumps(compute(payload), ensure_ascii=False))
     except Exception as error:
         print(json.dumps({"error": str(error), "trace": traceback.format_exc(limit=2)}))
         sys.exit(1)

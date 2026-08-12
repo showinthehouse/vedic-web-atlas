@@ -49,14 +49,16 @@ describe("auth.logout", () => {
     const result = await caller.auth.logout();
 
     expect(result).toEqual({ success: true });
-    expect(clearedCookies).toHaveLength(1);
-    expect(clearedCookies[0]?.name).toBe(COOKIE_NAME);
-    expect(clearedCookies[0]?.options).toMatchObject({
+    expect(clearedCookies).toHaveLength(2);
+    const oauthCookie = clearedCookies.find(cookie => cookie.name === COOKIE_NAME);
+    const localCookie = clearedCookies.find(cookie => cookie.name === "vedic_local_session");
+    expect(oauthCookie?.options).toMatchObject({
       maxAge: -1,
       secure: true,
       sameSite: "none",
       httpOnly: true,
       path: "/",
     });
+    expect(localCookie?.options).toMatchObject({ httpOnly: true, sameSite: "lax", path: "/" });
   });
 });

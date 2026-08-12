@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { birthProfiles, InsertBirthProfile, InsertUser, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,53 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function getUserById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return result[0];
+}
+
+export async function getUserByUsername(username: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+  return result[0];
+}
+
+export async function createLocalUser(username: string, passwordHash: string) {
+  const db = await getDb();
+  if (!db) throw new Error("数据库暂时不可用，请稍后再试。");
+  await db.insert(users).values({ openId: `local:${username}`, username, passwordHash, name: username, loginMethod: "password", lastSignedIn: new Date() });
+  return getUserByUsername(username);
+}
+
+export async function touchLocalUser(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, id));
+}
+
+export async function listBirthProfiles(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(birthProfiles).where(eq(birthProfiles.userId, userId)).orderBy(desc(birthProfiles.updatedAt));
+}
+
+export async function createBirthProfile(values: InsertBirthProfile) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.insert(birthProfiles).values(values);
+}
+
+export async function updateBirthProfile(userId: number, profileId: number, values: Partial<InsertBirthProfile>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.update(birthProfiles).set(values).where(and(eq(birthProfiles.id, profileId), eq(birthProfiles.userId, userId)));
+}
+
+export async function deleteBirthProfile(userId: number, profileId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.delete(birthProfiles).where(and(eq(birthProfiles.id, profileId), eq(birthProfiles.userId, userId)));
+}
