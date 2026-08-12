@@ -142,3 +142,11 @@ KeepTogether 修复后，已以 Chennai 校验资料重新生成星盘，准备�
 中文研究模板也已用同一探针重新生成 `vedic-web-atlas-template-check-zh-CN.pdf` 并完成第 1–5 页视觉核验。第 1 页标题显示为“Vedic Web Atlas 占星报告”，副标题、计算总览表、性别字段“男”、坐标和引擎行均清晰可读；第 2 页目录正确只列出已勾选四项章节；第 3 页四张北印度分盘图与中文图注正常显示；第 4 页 Rasi 位置表字段“天体、星座、宫位、位置、宿主”无乱码；第 5 页 `Vimsottari 节点与 Yoga` 页面中中文标题与说明正常，英文规则表也保持可读。与旧 `STSong-Light` 相比，文泉驿正黑消除了先前较明显的乱码风险和字距异常，可作为新的默认中文 PDF 字体方案。
 
 此前浏览器导出会把完整 `result`（包含高密度时间轴和分盘数据）送入 tRPC，网关实际返回 HTTP 403。导出流程已改为仅提交经 Zod 校验的出生参数，服务端重新计算后生成 PDF。浏览器网络日志确认修复后的请求返回 HTTP 200，下载历史新增 `vedic-web-atlas-report (8).pdf`。该文件已直接视觉检查：共 7 页，第 1 页为 **Vedic Web Atlas Research Report** 英文标题与 Calculation overview，Gender 显示为 Not specified；第 2 页目录只列出四个勾选章节；其余页面仅呈现 Charts、Vimsottari/Yoga 与 Strength 内容。新下载产物由文泉驿正黑正常绘制，文本、表格和页码均清晰，证明工作台的 `language=en` 与章节过滤状态已端到端生效。
+
+## 2026-08-12：出生档案 gender 缺列查询回退
+
+在档案侧栏的真实 tRPC 查询中，Drizzle 返回了包含 `select … gender … from birth_profiles` 的 `Failed query` 异常。根因是应用 schema 已开始选择 `gender`，而托管数据库的 `birth_profiles` 表仍未成功应用该列迁移。已实现两层安全回退：第一层识别 MySQL 的 `Unknown column … gender`；第二层识别 Drizzle 包装后的 `Failed query` 字符串及嵌套 `cause`。命中后，系统改用不包含 `gender` 的旧字段列表重新查询，并为返回的每条档案补上 `gender: "UNSPECIFIED"`。
+
+新增 `server/db.genderFallback.test.ts` 覆盖原生缺列错误、Drizzle 包装错误、嵌套 cause、无关错误不被吞没，以及 legacy 选择器返回数据会补齐 `UNSPECIFIED` 的路径。回归结果为 `pnpm test` 共 9 个测试文件、17 个用例通过，生产构建通过。托管数据库在迁移执行阶段仍间歇性发生 DNS / ETIMEDOUT，因此保留 `drizzle/0002_mysterious_bastion.sql`，待连接稳定后再实际添加列；在此之前现有档案读取、创建和更新不会因为缺少该列而崩溃。
+
+随后在 DNS 恢复窗口中，`ALTER TABLE birth_profiles ADD gender enum('FEMALE','MALE','UNSPECIFIED') DEFAULT 'UNSPECIFIED' NOT NULL` 已由托管数据库成功执行。服务随即重启以清理旧连接状态；后续独立验证查询再次受 DNS 波动影响未能完成，但迁移执行返回成功。保留 schema 回退逻辑作为短暂网络与旧部署版本的兼容保护。
