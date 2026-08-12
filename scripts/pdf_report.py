@@ -14,7 +14,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-from reportlab.platypus import KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Flowable, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
 FONT = "STSong-Light"
@@ -23,6 +23,57 @@ TEAL = colors.HexColor("#4E7E76")
 PAPER = colors.HexColor("#FAF8F2")
 LINE = colors.HexColor("#D2CEC3")
 MUTED = colors.HexColor("#71807D")
+SHORT_SIGNS = ["Ar", "Ta", "Ge", "Ca", "Le", "Vi", "Li", "Sc", "Sg", "Cp", "Aq", "Pi"]
+
+
+class NorthIndianChartFlowable(Flowable):
+    """Vector North Indian chart, drawn from the same calculated division positions in the report."""
+
+    def __init__(self, items, label, size=74 * mm):
+        super().__init__()
+        self.items = items
+        self.label = label
+        self.size = size
+        self.width = size
+        self.height = size
+
+    def draw(self):
+        canvas = self.canv
+        s = self.size
+        canvas.setStrokeColor(NAVY)
+        canvas.setLineWidth(0.65)
+        canvas.rect(1.5 * mm, 1.5 * mm, s - 3 * mm, s - 3 * mm)
+        canvas.line(1.5 * mm, 1.5 * mm, s - 1.5 * mm, s - 1.5 * mm)
+        canvas.line(s - 1.5 * mm, 1.5 * mm, 1.5 * mm, s - 1.5 * mm)
+        canvas.line(s / 2, 1.5 * mm, s - 1.5 * mm, s / 2)
+        canvas.line(s - 1.5 * mm, s / 2, s / 2, s - 1.5 * mm)
+        canvas.line(s / 2, s - 1.5 * mm, 1.5 * mm, s / 2)
+        canvas.line(1.5 * mm, s / 2, s / 2, 1.5 * mm)
+        positions = [
+            (s / 2, s - 10 * mm), (s - 18 * mm, s - 18 * mm), (s - 8 * mm, s / 2 + 7 * mm),
+            (s - 12 * mm, s / 2 - 18 * mm), (s - 20 * mm, 15 * mm), (s / 2, 8 * mm),
+            (20 * mm, 15 * mm), (12 * mm, s / 2 - 18 * mm), (8 * mm, s / 2 + 7 * mm),
+            (18 * mm, s - 18 * mm), (s / 2 - 24 * mm, s - 24 * mm), (s / 2 + 24 * mm, s - 24 * mm),
+        ]
+        bodies = {}
+        for item in self.items:
+            bodies.setdefault(item.get("signIndex", 0), []).append(item)
+        canvas.setFillColor(MUTED)
+        canvas.setFont(FONT, 5.6)
+        for sign_index, (x, y) in enumerate(positions):
+            canvas.drawCentredString(x, y + 3.6 * mm, SHORT_SIGNS[sign_index])
+            names = ["As" if point.get("body") == "Ascendant" else point.get("body", "")[:2] for point in bodies.get(sign_index, [])]
+            canvas.setFillColor(TEAL)
+            canvas.setFont(FONT, 6.2)
+            canvas.drawCentredString(x, y, "·".join(names)[:18])
+            canvas.setFillColor(MUTED)
+            canvas.setFont(FONT, 5.6)
+        canvas.setFillColor(NAVY)
+        canvas.setFont(FONT, 7)
+        canvas.drawCentredString(s / 2, s / 2 + 2 * mm, self.label)
+        canvas.setFillColor(MUTED)
+        canvas.setFont(FONT, 5.4)
+        canvas.drawCentredString(s / 2, s / 2 - 2 * mm, "NORTH INDIAN · SIDEREAL")
 
 
 def safe(value):
@@ -107,8 +158,8 @@ def main():
         ["出生资料", f"{input_data['date']} {input_data['time']} | {input_data['placeName']}"],
         ["坐标与时区", f"{input_data.get('latitudeDms', input_data['latitude'])}, {input_data.get('longitudeDms', input_data['longitude'])} | UTC{input_data['timezone']:+g}"],
         ["计算参数", f"{input_data['calendar']} | {result['engine']['zodiac']} | {result['engine']['ayanamsa']} | 岁差 {result['engine'].get('ayanamsaValue', '—')}°"],
-        ["报告范围", "已支持：Rasi、五支历、Jaimini Karaka、9 项特殊 Lagna、5 项太阳虚点、Sarva/Bhinna Ashtakavarga、分盘 D1–D60、Dasa、Yoga、Muhurta、Shadbala。"],
-        ["当前边界", "Varnada Lagna、Yogi/Avayogi、Maandi/Gulika 等因传统流派与计算口径差异尚未纳入本版；本报告仅列示真实计算参数，不生成个人预测或决策结论。"],
+        ["报告范围", "已支持：Rasi、五支历、Jaimini Karaka、特殊 Lagna、太阳虚点、可选 Varnada / Yogi / Avayogi、Sarva/Bhinna Ashtakavarga、分盘 D1–D60、Dasa、Yoga、Muhurta、Shadbala。"],
+        ["当前边界", "Maandi/Gulika 因流派与计算口径差异尚未纳入本版。Varnada 按输入所选方法计算；本报告仅列示真实计算参数，不生成个人预测或决策结论。"],
         ["计算引擎", "PyJHora + Swiss Ephemeris（AGPL-3.0）"],
     ]
     overview = Table([[p(label, styles["small"]), p(value, styles["body"])] for label, value in overview_rows], colWidths=[30 * mm, 139 * mm], hAlign="LEFT")
@@ -118,6 +169,38 @@ def main():
         ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
     story.extend([overview, Spacer(1, 3 * mm)])
+
+    story.append(PageBreak())
+    add_section(story, "目录 | 报告章节指引", styles)
+    toc_rows = [
+        ["01", "计算总览与 Rasi D1", "出生资料、计算参数、行星位置"],
+        ["02", "北印度分盘图", "D1、D9、D10、D60 的图形总览"],
+        ["03", "Panchanga 与传统派生点", "五支历、Karaka、Lagna、虚点与可选传统点"],
+        ["04", "周期、力量与 Ashtakavarga", "Vimsottari、Yoga、Muhurta、Shadbala、SAV/BAV"],
+        ["05", "分盘总览", "D1–D60 的完整位置表"],
+    ]
+    story.append(data_table(["章节", "内容", "覆盖参数"], toc_rows, [20 * mm, 52 * mm, 97 * mm], styles, centered=(0,)))
+    story.append(Spacer(1, 5 * mm))
+    story.append(p("目录页用于快速定位参数层级；实际页码会随所选分盘、比较模块和表格分页变化。", styles["note"]))
+
+    divisions_by_factor = {division.get("factor"): division for division in result.get("divisions", [])}
+    visual_factors = [1, 9, 10, 60]
+    visual_cards = []
+    for factor in visual_factors:
+        division = divisions_by_factor.get(factor)
+        if division:
+            visual_cards.append([
+                Paragraph(f"{division.get('label', f'D-{factor}')} | 北印度分盘图", styles["small"]),
+                Spacer(1, 1 * mm),
+                NorthIndianChartFlowable(division.get("items", []), division.get("label", f"D-{factor}"), 72 * mm),
+            ])
+    if visual_cards:
+        story.append(PageBreak())
+        add_section(story, "北印度分盘图 | Visual Varga Atlas", styles)
+        story.append(p("以下图形由同一份真实分盘位置数据直接绘制，图内 As 表示 Ascendant，其他为天体缩写。", styles["note"]))
+        story.append(Spacer(1, 2 * mm))
+        story.append(Table([[visual_cards[0], visual_cards[1]], [visual_cards[2], visual_cards[3]]], colWidths=[84 * mm, 84 * mm], hAlign="LEFT", style=[("VALIGN", (0, 0), (-1, -1), "TOP"), ("BOX", (0, 0), (-1, -1), 0.3, LINE), ("INNERGRID", (0, 0), (-1, -1), 0.3, LINE), ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5)]))
+    story.append(PageBreak())
 
     add_section(story, "Rasi | D1 行星位置", styles)
     story.append(data_table(["天体", "星座", "宫位", "位置", "星宿", "Pada", "宿主"], position_rows(result["rasi"]), [22 * mm, 28 * mm, 16 * mm, 25 * mm, 34 * mm, 16 * mm, 28 * mm], styles, centered=(2, 3, 5)))
@@ -142,6 +225,14 @@ def main():
 
     add_section(story, "太阳虚点 | Solar Upagraha（D1）", styles)
     story.append(data_table(["虚点", "星座", "宫位", "位置", "星宿", "Pada", "宿主"], position_rows(result.get("solarUpagrahas", [])), [26 * mm, 25 * mm, 15 * mm, 24 * mm, 34 * mm, 16 * mm, 29 * mm], styles, centered=(2, 3, 5)))
+
+    traditional = result.get("traditionalPoints", [])
+    traditional_config = result.get("traditionalConfig", {})
+    if traditional_config.get("enabled") and traditional:
+        add_section(story, f"可选传统点 | {traditional_config.get('varnadaMethodName', 'Varnada')}", styles)
+        story.append(p(traditional_config.get("scope", "Varnada uses the selected method; Yogi and Avayogi are returned as sphuta points."), styles["note"]))
+        story.append(Spacer(1, 2 * mm))
+        story.append(data_table(["点位", "星座", "宫位", "位置", "星宿", "Pada", "宿主"], position_rows(traditional), [26 * mm, 25 * mm, 15 * mm, 24 * mm, 34 * mm, 16 * mm, 29 * mm], styles, centered=(2, 3, 5)))
 
     fine = result.get("fineDasa", {})
     story.append(KeepTogether([

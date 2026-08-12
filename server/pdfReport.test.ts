@@ -8,14 +8,14 @@ const chennai: VedicInput = {
 };
 
 describe("PDF report", () => {
-  it("generates a non-empty structured PDF with a Chinese-safe report title", async () => {
+  it("generates a Chinese-safe report with contents, vector North Indian charts and traditional points", async () => {
     const result = await calculateVedicChart(chennai);
     const file = await createPdfReport({ result });
     const bytes = Buffer.from(file.base64, "base64");
 
     expect(file.filename).toBe("vedic-web-atlas-report.pdf");
     expect(bytes.subarray(0, 4).toString("ascii")).toBe("%PDF");
-    expect(bytes.byteLength).toBeGreaterThan(20_000);
+    expect(bytes.byteLength).toBeGreaterThan(40_000);
     expect(bytes.toString("latin1")).toContain("STSong-Light");
   }, 30_000);
 });

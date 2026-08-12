@@ -20,6 +20,8 @@ const chartInput = z.object({
   calendar: z.enum(["GREGORIAN", "JULIAN"]),
   ayanamsa: z.enum(["LAHIRI", "RAMAN", "KP", "TRUE_PUSHYA"]),
   divisionalFactor: z.number().int().min(1).max(300),
+  varnadaMethod: z.number().int().min(1).max(4).default(1),
+  includeTraditionalPoints: z.boolean().default(true),
 });
 
 const profileInput = chartInput.extend({

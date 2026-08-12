@@ -10,6 +10,8 @@ export type VedicInput = {
   calendar: "GREGORIAN" | "JULIAN";
   ayanamsa: "LAHIRI" | "RAMAN" | "KP" | "TRUE_PUSHYA";
   divisionalFactor: number;
+  varnadaMethod?: number;
+  includeTraditionalPoints?: boolean;
 };
 
 async function runVedicEngine(input: unknown) {

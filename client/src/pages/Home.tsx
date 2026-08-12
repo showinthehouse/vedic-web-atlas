@@ -38,7 +38,7 @@ type ChartItem = {
 
 type CalculationResult = {
   engine: { name: string; license: string; ayanamsa: string; ayanamsaValue: number; zodiac: string };
-  input: { date: string; time: string; calendar: string; placeName: string; latitude: number; longitude: number; latitudeDms: string; longitudeDms: string; timezone: number };
+  input: { date: string; time: string; calendar: string; placeName: string; latitude: number; longitude: number; latitudeDms: string; longitudeDms: string; timezone: number; varnadaMethod: number; includeTraditionalPoints: boolean };
   selectedChart: { factor: number; label: string; items: ChartItem[] };
   rasi: ChartItem[];
   navamsa: ChartItem[];
@@ -53,12 +53,21 @@ type CalculationResult = {
   charaKarakas: { karaka: string; planet: string }[];
   specialLagnas: ChartItem[];
   solarUpagrahas: ChartItem[];
+  traditionalPoints: ChartItem[];
+  traditionalConfig: { enabled: boolean; varnadaMethod: number; varnadaMethodName: string; scope: string };
   divisions: { factor: number; label: string; items: ChartItem[] }[];
   bhinnaAshtakavarga: { body: string; points: number[]; total: number }[];
 };
 
 const signShort = ["Ar", "Ta", "Ge", "Ca", "Le", "Vi", "Li", "Sc", "Sg", "Cp", "Aq", "Pi"];
 const divisionalChoices = [1, 2, 3, 4, 7, 9, 10, 12, 16, 20, 24, 27, 30, 40, 45, 60];
+const vargaThemes = {
+  core: { label: "本命与心性", note: "D1 观察本命基础，D9 观察内在取向与关系承诺。", factors: [1, 9] },
+  resources: { label: "财富与居所", note: "D2、D4 与 D16 对应资源、居所与舒适相关主题。", factors: [2, 4, 16] },
+  vocation: { label: "事业与学习", note: "D10、D20 与 D24 对应事业、实践与学习路径。", factors: [10, 20, 24] },
+  family: { label: "关系与家族", note: "D7、D9 与 D12 对应后代、关系与家族脉络。", factors: [7, 9, 12] },
+  resilience: { label: "挑战与细节", note: "D27、D30、D40、D45 与 D60 适合细粒度传统研究。", factors: [27, 30, 40, 45, 60] },
+} as const;
 
 function NorthIndianChart({ items, label }: { items: ChartItem[]; label: string }) {
   const signBodies = useMemo(() => {
@@ -131,6 +140,9 @@ export default function Home() {
   const [calendar, setCalendar] = useState<"GREGORIAN" | "JULIAN">("GREGORIAN");
   const [ayanamsa, setAyanamsa] = useState<"LAHIRI" | "RAMAN" | "KP" | "TRUE_PUSHYA">("LAHIRI");
   const [divisionalFactor, setDivisionalFactor] = useState(1);
+  const [vargaTheme, setVargaTheme] = useState<keyof typeof vargaThemes>("core");
+  const [varnadaMethod, setVarnadaMethod] = useState<1 | 2 | 3 | 4>(1);
+  const [includeTraditionalPoints, setIncludeTraditionalPoints] = useState(true);
   const [activeTab, setActiveTab] = useState<"chart" | "details" | "panchanga" | "dasa" | "fineDasa" | "yogas" | "muhurta" | "strength" | "ashtaka" | "transits">("chart");
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -164,7 +176,7 @@ export default function Home() {
       setFormError("请填写有效的经度、纬度和时区偏移量。");
       return;
     }
-    calculate.mutate({ date: normalizedDate, time: normalizedTime, placeName, latitude: lat, longitude: lon, timezone: tz, calendar, ayanamsa, divisionalFactor });
+    calculate.mutate({ date: normalizedDate, time: normalizedTime, placeName, latitude: lat, longitude: lon, timezone: tz, calendar, ayanamsa, divisionalFactor, varnadaMethod, includeTraditionalPoints });
   }
 
   function loadChennaiPreset() {
@@ -183,6 +195,7 @@ export default function Home() {
 
   const displayChart = result?.selectedChart.factor === 1 ? result.rasi : result?.selectedChart.items;
   const displayLabel = result ? (result.selectedChart.factor === 1 ? "RASI / D1" : result.selectedChart.label) : "RASI / D1";
+  const themedDivisions = result ? result.divisions.filter(division => vargaThemes[vargaTheme].factors.includes(division.factor as never)) : [];
 
   return (
     <div className="astro-app">
@@ -201,6 +214,7 @@ export default function Home() {
             <div className="field-grid three"><label><span>纬度</span><input inputMode="decimal" value={latitude} onChange={event => setLatitude(event.target.value)} /></label><label><span>经度</span><input inputMode="decimal" value={longitude} onChange={event => setLongitude(event.target.value)} /></label><label><span>UTC</span><input inputMode="decimal" value={timezone} onChange={event => setTimezone(event.target.value)} /></label></div>
             {timezoneMeta && <div className="timezone-meta"><span><MapPin size={12} /> {timezoneMeta.timeZoneId}</span><span>{timezoneMeta.formattedOffset}{timezoneMeta.dstApplied ? " · DST" : " · 标准时"}</span>{timezoneMeta.warning && <small>{timezoneMeta.warning}</small>}</div>}
             <div className="field-grid three"><label><span>历法</span><select value={calendar} onChange={event => setCalendar(event.target.value as typeof calendar)}><option value="GREGORIAN">Gregorian</option><option value="JULIAN">Julian</option></select></label><label><span>Ayanamsa</span><select value={ayanamsa} onChange={event => setAyanamsa(event.target.value as typeof ayanamsa)}><option value="LAHIRI">Lahiri</option><option value="RAMAN">Raman</option><option value="KP">KP</option><option value="TRUE_PUSHYA">True Pushya</option></select></label><label><span>目标分盘</span><select value={divisionalFactor} onChange={event => setDivisionalFactor(Number(event.target.value))}>{divisionalChoices.map(factor => <option value={factor} key={factor}>D-{factor}{factor === 1 ? " · Rasi" : factor === 9 ? " · Navamsa" : ""}</option>)}</select></label></div>
+            <div className="field-grid two tradition-controls"><label><span>Varnada 方法</span><select value={varnadaMethod} onChange={event => setVarnadaMethod(Number(event.target.value) as 1 | 2 | 3 | 4)}><option value={1}>B. V. Raman</option><option value={2}>Sharma / Santhanam</option><option value={3}>Sanjay Rath</option><option value={4}>Sitaram Jha / R. Pandey</option></select></label><label className="traditional-toggle"><input type="checkbox" checked={includeTraditionalPoints} onChange={event => setIncludeTraditionalPoints(event.target.checked)} /><span>计算 Yogi / Avayogi</span><small>以真实 Sphuta 点返回，不作预测结论。</small></label></div>
             <button type="submit" className="calculate-button" disabled={calculate.isPending}>{calculate.isPending ? <><LoaderCircle size={17} className="spin" /> 正在计算星历…</> : <><Sparkles size={17} /> 生成真实印度占星报告</>}</button>
             {formError && <div className="form-error"><CircleAlert size={15} />{formError}</div>}
           </form>
@@ -226,8 +240,8 @@ export default function Home() {
                 </div>
                 <aside className="scope-note" role="note" aria-label="参数覆盖与当前边界">
                   <b>参数覆盖与当前边界</b>
-                  <p><strong>已支持：</strong>Rasi、五支历、Jaimini Karaka、特殊 Lagna、太阳虚点、Sarva/Bhinna Ashtakavarga、D1–D60、Dasa、Yoga、Muhurta、Shadbala。</p>
-                  <p><strong>当前未纳入：</strong>Varnada Lagna、Yogi/Avayogi、Maandi/Gulika；因流派与计算口径差异暂不在本版呈现。</p>
+                  <p><strong>已支持：</strong>Rasi、五支历、Jaimini Karaka、特殊 Lagna、太阳虚点、Varnada、Yogi/Avayogi、Sarva/Bhinna Ashtakavarga、D1–D60、Dasa、Yoga、Muhurta、Shadbala。</p>
+                  <p><strong>当前未纳入：</strong>Maandi/Gulika；因流派与计算口径差异暂不在本版呈现。Varnada 方法可由输入栏选择。</p>
                 </aside>
                 <div className="parameter-grid">
                   <article><span>黄道与岁差</span><b>{result.engine.zodiac} · {result.engine.ayanamsa}</b><small>岁差值 {result.engine.ayanamsaValue.toFixed(6)}°</small></article>
@@ -238,7 +252,9 @@ export default function Home() {
                 <div className="detail-section"><h4>Jaimini Chara Karaka</h4><div className="compact-pairs">{result.charaKarakas.map(item => <span key={item.karaka}><b>{item.karaka}</b>{item.planet}</span>)}</div></div>
                 <div className="detail-section"><h4>特殊 Lagna 与派生点（D1）</h4><ResultTable items={result.specialLagnas} detailed /></div>
                 <div className="detail-section"><h4>太阳虚点 | Solar Upagraha（D1）</h4><ResultTable items={result.solarUpagrahas} detailed /></div>
+                {result.traditionalConfig.enabled && <div className="detail-section"><h4>可选传统点 | {result.traditionalConfig.varnadaMethodName}</h4><p className="section-scope">{result.traditionalConfig.scope}</p><ResultTable items={result.traditionalPoints} detailed /></div>}
                 <div className="detail-section"><h4>分盘总览</h4><div className="varga-summary">{result.divisions.map(division => { const asc = division.items.find(item => item.body === "Ascendant"); const sun = division.items.find(item => item.body === "Sun"); const moon = division.items.find(item => item.body === "Moon"); return <article key={division.factor}><b>{division.label}</b><span>As {asc?.sign} {asc?.formattedDegree}</span><span>Su {sun?.sign} · Mo {moon?.sign}</span></article>; })}</div></div>
+                <div className="detail-section varga-explorer"><div className="varga-explorer-head"><div><h4>分盘主题对照</h4><p>{vargaThemes[vargaTheme].note}</p></div><label><span>研究主题</span><select value={vargaTheme} onChange={event => setVargaTheme(event.target.value as keyof typeof vargaThemes)}>{Object.entries(vargaThemes).map(([key, theme]) => <option key={key} value={key}>{theme.label}</option>)}</select></label></div><div className="varga-compare-grid">{themedDivisions.map(division => <article key={division.factor}><span className="section-tag">{division.label} / NORTH INDIAN</span><NorthIndianChart items={division.items} label={division.label} /><ResultTable items={division.items.filter(item => ["Ascendant", "Sun", "Moon", "Mars", "Jupiter", "Venus", "Saturn"].includes(item.body))} /></article>)}</div></div>
               </div>
             )}
             {activeTab === "panchanga" && <div className="panchanga-grid"><div className="panchanga-hero"><Sun size={22} /><span className="section-tag">FIVE-LIMB PANCHANGA</span><h3>{result.panchanga.weekday}</h3><p>{result.panchanga.lunarMonth.name} · 日出至次日日出为 Vedic weekday。</p></div><div className="panchanga-card"><span>Tithi</span><b>{result.panchanga.tithi.paksha} {result.panchanga.tithi.name}</b><small>#{result.panchanga.tithi.number} · {result.panchanga.tithi.startTime}–{result.panchanga.tithi.endTime} · 余 {result.panchanga.tithi.percentLeft}%</small></div><div className="panchanga-card"><span>Nakshatra</span><b>{result.panchanga.nakshatra.name}</b><small>#{result.panchanga.nakshatra.number} · Pada {result.panchanga.nakshatra.pada} · {result.panchanga.nakshatra.lord} · 余 {result.panchanga.nakshatra.percentLeft}%</small></div><div className="panchanga-card"><span>Yoga</span><b>{result.panchanga.yoga.name}</b><small>#{result.panchanga.yoga.number} · {result.panchanga.yoga.startTime}–{result.panchanga.yoga.endTime} · 余 {result.panchanga.yoga.percentLeft}%</small></div><div className="panchanga-card"><span>Karana</span><b>{result.panchanga.karana.name}</b><small>#{result.panchanga.karana.number} · {result.panchanga.karana.startTime}–{result.panchanga.karana.endTime} · 余 {result.panchanga.karana.percentLeft}%</small></div><div className="panchanga-card"><span>Sunrise / Sunset</span><b>{result.panchanga.sunrise} / {result.panchanga.sunset}</b><small>昼 {result.panchanga.dayLength} · 夜 {result.panchanga.nightLength}</small></div></div>}

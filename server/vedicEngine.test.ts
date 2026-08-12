@@ -23,6 +23,8 @@ describe("vedic calculation engine", () => {
       charaKarakas: { karaka: string; planet: string }[];
       specialLagnas: { body: string; house: number; nakshatra: { name: string } }[];
       solarUpagrahas: { body: string; sign: string }[];
+      traditionalPoints: { body: string; sign: string; house: number }[];
+      traditionalConfig: { enabled: boolean; varnadaMethod: number; varnadaMethodName: string };
       divisions: { factor: number; items: { body: string; house: number }[] }[];
       bhinnaAshtakavarga: { body: string; points: number[]; total: number }[];
     };
@@ -57,6 +59,9 @@ describe("vedic calculation engine", () => {
     expect(result.specialLagnas).toHaveLength(9);
     expect(result.specialLagnas.every(item => item.house >= 1 && item.house <= 12 && item.nakshatra.name.length > 0)).toBe(true);
     expect(result.solarUpagrahas).toHaveLength(5);
+    expect(result.traditionalPoints.map(item => item.body)).toEqual(["Varnada Lagna", "Yogi Sphuta", "Avayogi Sphuta"]);
+    expect(result.traditionalPoints.every(item => item.house >= 1 && item.house <= 12)).toBe(true);
+    expect(result.traditionalConfig).toMatchObject({ enabled: true, varnadaMethod: 1, varnadaMethodName: "B. V. Raman" });
     expect(result.divisions.map(item => item.factor)).toEqual([1, 2, 3, 4, 7, 9, 10, 12, 16, 20, 24, 27, 30, 40, 45, 60]);
     expect(result.divisions.every(item => item.items.length === 10)).toBe(true);
     expect(result.bhinnaAshtakavarga).toHaveLength(8);
@@ -70,5 +75,11 @@ describe("vedic calculation engine", () => {
     expect(result.compatibility.score).toBeGreaterThanOrEqual(0);
     expect(result.compatibility.score).toBeLessThanOrEqual(36);
     expect(result.compatibility.components).toHaveLength(8);
+  }, 30_000);
+
+  it("uses a caller-selected Varnada method and can omit optional traditional points", async () => {
+    const result = await calculateVedicChart({ ...chennai, varnadaMethod: 3, includeTraditionalPoints: false }) as { traditionalPoints: unknown[]; traditionalConfig: { enabled: boolean; varnadaMethod: number; varnadaMethodName: string } };
+    expect(result.traditionalPoints).toEqual([]);
+    expect(result.traditionalConfig).toMatchObject({ enabled: false, varnadaMethod: 3, varnadaMethodName: "Sanjay Rath" });
   }, 30_000);
 });

@@ -116,3 +116,13 @@ KeepTogether 修复后，已以 Chennai 校验资料重新生成星盘，准备�
 工作台范围说明可见性验证：刷新页面、重新计算 Chennai 资料并打开“详参”后，标题下方出现高亮的“参数覆盖与当前边界”区块。该区块列出已支持的 Rasi、五支历、Jaimini Karaka、特殊 Lagna、太阳虚点、Sarva/Bhinna Ashtakavarga、D1–D60、Dasa、Yoga、Muhurta、Shadbala，并说明 Varnada Lagna、Yogi/Avayogi、Maandi/Gulika 因流派与计算口径差异暂未在本版呈现。
 
 为保证该说明可被阅读器、辅助技术与页面文本提取稳定访问，已将其由 CSS 伪元素改为详参面板内的真实 JSX `aside` 区块。浏览器最终验证的页面文本已明确提取“参数覆盖与当前边界”、“已支持”与“当前未纳入”两段内容，视觉布局也显示为参数卡片前的高亮说明栏。
+
+## 2026-08-12：传统参数、分盘主题对照与 14 页 PDF 回归
+
+以 Chennai 校验输入 `1996-12-07 10:34`、Lahiri ayanamsa 为基础，在输入栏选择 **Sanjay Rath** Varnada 方法并保持 Yogi / Avayogi 开关开启后，浏览器成功完成真实计算。详参面板明确标注“可选传统点 | Sanjay Rath”，并显示 Varnada Lagna 为 Capricorn 19°47′25″、Yogi Sphuta 为 Virgo 1°51′29″、Avayogi Sphuta 为 Pisces 8°31′29″。范围说明同步确认这些是由 PyJHora 返回的真实点位，而非预测结论；其余三种 Varnada 方法也可从同一选择框切换。
+
+同一浏览器回归中，将分盘主题选择为“事业与学习”后，对照区实时切换为 D10、D20 与 D24 三张并列北印度图及各自的行星位置表。页面分别展示 D10 Ascendant Aries 14°27′27″、D20 Ascendant Gemini 28°54′55″、D24 Ascendant Sagittarius 28°41′54″，证明主题筛选会使用本次服务端计算的分盘数据，而不是静态说明文字。
+
+新版 PDF 已从工作台下载为 `vedic-web-atlas-report (7).pdf`，经人工视觉核验共 14 页。第 2 页是五项章节目录；第 3 页以 2×2 形式嵌入 D1、D9、D10、D60 北印度分盘图，格线、中心标识、标题和天体缩写均正常绘制。第 5 页完整显示特殊 Lagna、太阳虚点及 Sanjay Rath 传统参数；第 6–7 页显示 Vimsottari、Yoga、Muhurta、Shadbala、Sarvashtakavarga 与 Bhinna Ashtakavarga；第 8–14 页连续呈现 D1–D60 分盘位置表。整份报告中中文字体、表头、页眉、页脚、页码、跨页衔接和末页免责声明均无乱码、裁切或重叠。报告后半部分采用高密度分盘汇编结构，没有单独的 Compatibility 页。
+
+自动化回归已更新并执行：`server/vedicEngine.test.ts` 覆盖传统点、方法切换及传统点禁用路径；`server/pdfReport.test.ts` 验证目录、北印度图增强后的 PDF 体积与中文字体嵌入。`pnpm check` 通过，`pnpm test` 共 8 个测试文件、14 个用例全部通过；最终生产构建仍待本轮结束前执行。

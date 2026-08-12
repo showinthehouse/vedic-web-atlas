@@ -14,7 +14,7 @@ import traceback
 with contextlib.redirect_stdout(sys.stderr):
     import swisseph as swe
     from jhora import const, utils
-    from jhora.horoscope.chart import charts, house
+    from jhora.horoscope.chart import charts, house, sphuta
     from jhora.horoscope.chart import ashtakavarga
     from jhora.horoscope.chart import strength
     from jhora.horoscope.dhasa.graha import vimsottari
@@ -47,6 +47,12 @@ VARGA_FACTORS = [1, 2, 3, 4, 7, 9, 10, 12, 16, 20, 24, 27, 30, 40, 45, 60]
 BAV_BODIES = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Ascendant"]
 WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 AYANAMSA = {"LAHIRI": "LAHIRI", "RAMAN": "RAMAN", "KP": "KP", "TRUE_PUSHYA": "TRUE_PUSHYA"}
+VARNADA_METHODS = {
+    1: "B. V. Raman",
+    2: "Sharma / Santhanam",
+    3: "Sanjay Rath",
+    4: "Sitaram Jha / R. Pandey",
+}
 
 
 def decimal_to_dms(value):
@@ -208,6 +214,25 @@ def solar_upagrahas(jd, place, rasi):
     return values
 
 
+def traditional_points(jd, place, rasi, varnada_method):
+    """Return optional points whose calculation method is explicitly selected by the user."""
+    asc_sign = next(item["signIndex"] for item in rasi if item["body"] == "Ascendant")
+    year, month, day, decimal_hour = utils.jd_to_gregorian(jd)
+    hour = int(decimal_hour)
+    minute = int((decimal_hour - hour) * 60)
+    second = int(round((((decimal_hour - hour) * 60) - minute) * 60))
+    dob = (year, month, day)
+    tob = (hour, minute, min(second, 59))
+    varnada_sign, varnada_degree = charts.varnada_lagna(dob, tob, place, varnada_method=varnada_method)
+    yogi_sign, yogi_degree = sphuta.yogi_sphuta(dob, tob, place)
+    avayogi_sign, avayogi_degree = sphuta.avayogi_sphuta(dob, tob, place)
+    return [
+        position_record("Varnada Lagna", "varnada", varnada_sign, varnada_degree, asc_sign),
+        position_record("Yogi Sphuta", "yogi", yogi_sign, yogi_degree, asc_sign),
+        position_record("Avayogi Sphuta", "avayogi", avayogi_sign, avayogi_degree, asc_sign),
+    ]
+
+
 def dasa_periods(jd, place):
     maha = vimsottari.vimsottari_mahadasa(jd, place)
     entries = list(maha.items())
@@ -312,6 +337,8 @@ def compute(payload):
     ayanamsa = AYANAMSA.get(str(payload.get("ayanamsa", "LAHIRI")).upper(), "LAHIRI")
     calendar = str(payload.get("calendar", "GREGORIAN")).upper()
     factor = int(payload.get("divisionalFactor", 1))
+    varnada_method = int(payload.get("varnadaMethod", 1))
+    include_traditional_points = bool(payload.get("includeTraditionalPoints", True))
 
     if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
         raise ValueError("Latitude or longitude is outside its valid range.")
@@ -319,6 +346,8 @@ def compute(payload):
         raise ValueError("Divisional factor must be between 1 and 300.")
     if calendar not in {"GREGORIAN", "JULIAN"}:
         raise ValueError("Calendar must be GREGORIAN or JULIAN.")
+    if varnada_method not in VARNADA_METHODS:
+        raise ValueError("Varnada method must be between 1 and 4.")
 
     with contextlib.redirect_stdout(sys.stderr):
         drik.set_ayanamsa_mode(ayanamsa)
@@ -329,12 +358,13 @@ def compute(payload):
         rasi = selected_chart if factor == 1 else chart_items(jd, place, 1)
         navamsa = selected_chart if factor == 9 else chart_items(jd, place, 9)
         divisions = [{"factor": divisional_factor, "label": f"D-{divisional_factor}", "items": (selected_chart if factor == divisional_factor else chart_items(jd, place, divisional_factor))} for divisional_factor in VARGA_FACTORS]
+        traditional = traditional_points(jd, place, rasi, varnada_method) if include_traditional_points else []
         now = dt.datetime.now() + dt.timedelta(hours=timezone)
         transit_jd = utils.julian_day_number((now.year, now.month, now.day), (now.hour, now.minute, 0))
 
     return {
         "engine": {"name": "PyJHora + Swiss Ephemeris", "license": "AGPL-3.0", "ayanamsa": ayanamsa, "ayanamsaValue": round(float(drik.get_ayanamsa_value(jd)), 6), "zodiac": "Sidereal"},
-        "input": {"date": date, "time": time, "calendar": calendar, "placeName": place_name, "latitude": latitude, "longitude": longitude, "latitudeDms": coordinate_dms(latitude, "N", "S"), "longitudeDms": coordinate_dms(longitude, "E", "W"), "timezone": timezone},
+        "input": {"date": date, "time": time, "calendar": calendar, "placeName": place_name, "latitude": latitude, "longitude": longitude, "latitudeDms": coordinate_dms(latitude, "N", "S"), "longitudeDms": coordinate_dms(longitude, "E", "W"), "timezone": timezone, "varnadaMethod": varnada_method, "includeTraditionalPoints": include_traditional_points},
         "selectedChart": {"factor": factor, "label": f"D-{factor}", "items": selected_chart},
         "rasi": rasi,
         "navamsa": navamsa,
@@ -343,6 +373,8 @@ def compute(payload):
         "charaKarakas": chara_karakas(jd, place),
         "specialLagnas": special_lagnas(jd, place, rasi),
         "solarUpagrahas": solar_upagrahas(jd, place, rasi),
+        "traditionalPoints": traditional,
+        "traditionalConfig": {"enabled": include_traditional_points, "varnadaMethod": varnada_method, "varnadaMethodName": VARNADA_METHODS[varnada_method], "scope": "Varnada uses the selected published method; Yogi and Avayogi are returned as sphuta points from PyJHora."},
         "vimsottari": dasa_periods(jd, place),
         "fineDasa": fine_dasa(jd, place),
         "yogas": yoga_results(rasi),
