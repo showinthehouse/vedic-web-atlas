@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
-"""Offline city lookup backed by PyJHora's bundled world-cities database."""
+"""Offline city lookup backed by PyJHora's bundled world-cities CSV database.
+
+The PyJHora default points at an optional SQLite asset that is downloaded from
+GitHub when absent. Web requests must not depend on that runtime download, so
+this adapter explicitly selects the CSV shipped with the installed package.
+"""
 
 import contextlib
 import json
 import sys
 
 with contextlib.redirect_stdout(sys.stderr):
-    from jhora import utils
+    from jhora import const, place_db, utils
 
 
 def record_to_json(record, description=None):
@@ -25,6 +30,8 @@ def main():
     payload = json.load(sys.stdin)
     action = payload.get("action")
     with contextlib.redirect_stdout(sys.stderr):
+        const.set_place_database_engine(const.PLACE_DATABASE_ENGINE.CSV_5K)
+        place_db.set_auto_download_place_database(False)
         utils.use_database_for_world_cities(True)
     if action == "search":
         labels = utils.search_places_for_completer(str(payload.get("query", "")), limit=8)

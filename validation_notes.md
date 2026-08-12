@@ -37,3 +37,13 @@ Compatibility 与 PDF 验证：选取两份已保存的测试档案后，浏览�
 扩展 PDF 最终浏览器验证：对 2000-01-01 Chennai 输入生成完整真实星盘后，工作台出现 Panchanga、Mahadasa、Antardasa、Yoga、Muhurta、Shadbala、Ashtakavarga 与过境标签，并可点击“下载 PDF 报告”。浏览器下载历史新增 `vedic-web-atlas-report (1).pdf`，与此前的 `vedic-web-atlas-report.pdf` 并列，确认报告生成与下载链路可重复执行；报告内容中的 Shadbala、Sarvashtakavarga、Muhurta、Vimsottari 已在服务端文本提取验证中确认存在。
 
 交付前自动化验证：`pnpm check`、`pnpm test` 和 `pnpm build` 于 2026-08-12 全部通过。Vitest 共执行 4 个测试文件、7 个用例，覆盖本地认证、登出、真实引擎和三组黄金星历样例；生产构建成功产出前端与服务端包。构建仅给出前端主包体积超过 500 kB 的优化提示，不影响构建完成。开发日志中可见的 `ERR_MODULE_NOT_FOUND` 为 19:20:01 的历史条目；随后所有 tsc 增量检查均为 0 错误，浏览器端 tRPC 计算、档案和 PDF 流程也已实际运行。
+
+## 2026-08-12：地点数据库离线回退修复
+
+本轮回归以页面地点输入框中的 `Chennai` 查询开始；请求会先尝试地图服务，随后验证 PyJHora 本地 CSV 回退是否返回建议且不泄露 GitHub 下载错误。
+
+浏览器已显示本地回退建议 `Chennai, Tamil Nadu, India`，且未出现原先包含 GitHub URL 的 `Network error while downloading place database asset`。已选择该建议，正在完成历史时区解析回填验证。
+
+历史时区解析随后成功完成：页面回填纬度 `13.0878`、经度 `80.2785`、UTC `5.5`，并显示 `Asia/Kolkata` 与 `UTC+05:30 · 标准时`。城市查询、离线建议、地点选择和时区解析均未产生客户端 API 错误。
+
+自动化回归新增 `server/cityLookup.test.ts`，它验证离线脚本会读取随 PyJHora 安装的 `geonames_places_5k.csv`，不会访问 GitHub 下载 URL，并能返回 Chennai 的既有坐标。修复后 `pnpm check` 与 `pnpm test` 通过（5 个测试文件、8 个用例），`pnpm build` 也成功完成。

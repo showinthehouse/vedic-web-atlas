@@ -31,3 +31,4 @@
 - [x] 在 Compatibility 面板明确标注 Ashta Koota / North 的适用范围与限制，并完成浏览器验证
 - [x] 在 PDF 报告中纳入 Shadbala 与 Sarvashtakavarga，重新验证下载产物
 - [x] 修复城市搜索将 Python 运行时警告误判为请求失败的问题，并重新验证会话加载体验
+- [x] 修复地点数据库资产临时无法下载时城市搜索抛出网络错误的问题，并验证本地回退结果

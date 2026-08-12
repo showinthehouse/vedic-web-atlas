@@ -54,10 +54,15 @@ async function runCityLookup(payload: { action: "search"; query: string } | { ac
     const child = spawn("python3", [scriptPath], { stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, PYTHONWARNINGS: "ignore::SyntaxWarning" } });
     let stdout = "";
     let stderr = "";
+    const timer = setTimeout(() => child.kill("SIGKILL"), 10_000);
     child.stdout.on("data", chunk => { stdout += chunk.toString(); });
     child.stderr.on("data", chunk => { stderr += chunk.toString(); });
-    child.on("error", reject);
+    child.on("error", error => {
+      clearTimeout(timer);
+      reject(error);
+    });
     child.on("close", code => {
+      clearTimeout(timer);
       try {
         const data = JSON.parse(stdout) as { error?: string; results?: OfflineCity[]; result?: OfflineCity | null };
         if (code !== 0 || data.error) return reject(new Error(data.error || stderr || "Offline city lookup failed."));
@@ -77,21 +82,37 @@ export async function searchCities(query: string) {
   try {
     const response = await makeRequest<AutocompleteResponse>("/maps/api/place/autocomplete/json", { input: query, types: "(cities)" });
     return response.predictions.slice(0, 6).map(prediction => ({ description: prediction.description, placeId: prediction.place_id, types: prediction.types }));
-  } catch {
-    const offline = await runCityLookup({ action: "search", query });
-    return (offline.results ?? []).map(item => ({ description: item.description, placeId: item.placeId, types: ["locality", "offline"] }));
+  } catch (mapsError) {
+    try {
+      const offline = await runCityLookup({ action: "search", query });
+      return (offline.results ?? []).map(item => ({ description: item.description, placeId: item.placeId, types: ["locality", "offline"] }));
+    } catch (offlineError) {
+      console.warn("[Location] City autocomplete unavailable; returning no suggestions.", { mapsError, offlineError });
+      return [];
+    }
   }
 }
 
 export async function resolveCity(input: { placeId: string; queryLabel?: string; date: string; time: string; calendar: CalendarType }) {
-  let offline = input.placeId.startsWith("pyjhora:") ? await runCityLookup({ action: "resolve", placeName: input.placeId.slice("pyjhora:".length) }) : null;
+  let offline: { result?: OfflineCity | null } | null = null;
+  if (input.placeId.startsWith("pyjhora:")) {
+    try {
+      offline = await runCityLookup({ action: "resolve", placeName: input.placeId.slice("pyjhora:".length) });
+    } catch (error) {
+      console.warn("[Location] Offline city resolution unavailable.", error);
+    }
+  }
   let response: GeocodingResult | null = null;
   if (!offline) {
     try {
       response = await makeRequest<GeocodingResult>("/maps/api/geocode/json", { place_id: input.placeId });
-    } catch {
-      const fallback = await runCityLookup({ action: "search", query: input.queryLabel || "" });
-      offline = { result: fallback.results?.[0] ?? null };
+    } catch (mapsError) {
+      try {
+        const fallback = await runCityLookup({ action: "search", query: input.queryLabel || "" });
+        offline = { result: fallback.results?.[0] ?? null };
+      } catch (offlineError) {
+        console.warn("[Location] City resolution unavailable after map lookup failed.", { mapsError, offlineError });
+      }
     }
   }
   const result = response?.results[0];
