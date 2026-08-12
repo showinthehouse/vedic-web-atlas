@@ -1,0 +1,177 @@
+# Vedic Web Atlas
+
+**Vedic Web Atlas** 是一个基于 PyJHora 与 Swiss Ephemeris 的全栈印度占星 Web 应用。项目将真实星历计算、出生档案、地点与历史时区解析、PDF 报告及用户名密码认证整合在同一工作台中；它不是演示数据生成器。
+
+> 本项目采用 **AGPL 开源部署路线**。如果将本应用通过网络向第三方提供服务，须同时遵守 PyJHora 与 Swiss Ephemeris 的相应许可条件，并向用户提供所要求的源码及许可证信息。[1] [2]
+
+## 功能范围
+
+| 模块 | 已实现内容 |
+| --- | --- |
+| 真实计算 | Rasi、Navamsa、D-N 分盘、Panchanga、Vimsottari Dasa、Shadbala、Sarva/Bhinna Ashtakavarga、Yoga、Muhurta 与过境。 |
+| 传统参数 | 四种 Varnada 方法、Yogi/Avayogi、Jaimini Chara Karaka、特殊 Lagna 与太阳虚点。 |
+| 地点与时间 | 中国城市中文别名、本地城市索引、全球 CSV 回退、历史 UTC 偏移与夏令时解析。 |
+| 档案与合盘 | 用户名密码认证、出生档案 CRUD、Ashta Koota / Porutham 辅助维度及性别方向说明。 |
+| 报告 | 可选择章节及中英模板的服务器端 PDF 导出，含北印度分盘图和目录页。 |
+| 稳定性 | Python/PDF 子进程超时与输出限制、有限重试、数据库瞬态重试、中文安全错误与前端恢复操作。 |
+
+## 技术栈与目录
+
+项目采用 React 19、Vite、Tailwind CSS、Express 4、tRPC 11、Drizzle ORM 和 MySQL/TiDB。真实占星计算及 PDF 由 Python 脚本执行，底层依赖 PyJHora、pyswisseph 与 ReportLab。
+
+```text
+client/src/             React 工作台、档案侧栏、地点搜索与图表组件
+server/                 tRPC 路由、认证、数据库与 Python 进程适配层
+scripts/vedic_engine.py 真实 PyJHora / Swiss Ephemeris 计算适配器
+scripts/pdf_report.py   服务器端 PDF 生成器
+drizzle/                数据库 schema 和迁移文件
+server/*.test.ts        Vitest 单元与路由回归测试
+Dockerfile              Node 22 + Python 3 的生产镜像定义
+```
+
+## 运行前提
+
+建议使用下表所列环境。Windows 用户可通过 WSL2 运行，以获得与 Docker、Python 字体及文件路径更一致的行为。
+
+| 依赖 | 建议版本或说明 |
+| --- | --- |
+| Node.js | 22 LTS |
+| pnpm | 10.x；项目已通过 `packageManager` 锁定版本。 |
+| Python | 3.10 及以上，命令须为 `python3`。 |
+| 数据库 | MySQL 8+ 或 TiDB；认证和出生档案功能需要连接数据库。 |
+| 系统字体 | 文泉驿正黑 `fonts-wqy-zenhei`，用于中文 PDF。 |
+
+## 本地快速启动
+
+先取得源码并安装 Node、Python 依赖。以下命令以 Ubuntu/macOS shell 为例；请在项目根目录执行。
+
+```bash
+git clone <你的仓库地址> vedic-web-atlas-v2
+cd vedic-web-atlas-v2
+
+corepack enable
+pnpm install
+
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install \
+  PyJHora pyswisseph geocoder geopy numpy pytz requests \
+  timezonefinder reverse_geocode reportlab
+```
+
+在 Ubuntu/Debian 上，为保证 PDF 中文可读，安装文泉驿字体：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y fonts-wqy-zenhei
+```
+
+### 配置环境变量
+
+在根目录创建未提交的 `.env` 文件。`DATABASE_URL` 和 `JWT_SECRET` 是本地用户名密码、出生档案功能的必要项；未配置数据库时，公开的星历计算仍可运行，但登录及档案不会可用。
+
+```dotenv
+NODE_ENV=development
+PORT=3000
+
+# MySQL / TiDB 连接串；用户名、密码和数据库名按实际环境替换。
+DATABASE_URL=mysql://app_user:strong_password@127.0.0.1:3306/vedic_atlas
+
+# 使用高强度随机值，勿提交到仓库。
+JWT_SECRET=replace_with_a_long_random_secret
+
+# 可选：保留 Manus OAuth 兼容功能时使用；仅用户名密码工作流不要求配置。
+VITE_APP_ID=
+OAUTH_SERVER_URL=
+OWNER_OPEN_ID=
+
+# 可选：托管平台的内置服务变量；本地核心占星计算不需要。
+BUILT_IN_FORGE_API_URL=
+BUILT_IN_FORGE_API_KEY=
+```
+
+可用下列命令生成随机会话密钥：
+
+```bash
+openssl rand -base64 48
+```
+
+### 初始化数据库并启动开发服务器
+
+确认 `DATABASE_URL` 能连接到空数据库或目标数据库后，执行迁移。首次部署前请备份已有数据库；迁移会创建或更新用户与出生档案相关表。
+
+```bash
+pnpm db:push
+pnpm dev
+```
+
+默认访问地址为 [http://localhost:3000](http://localhost:3000)。如果 3000 已被占用，服务会从 3000 起选择下一个可用端口，并在终端输出实际地址。
+
+## 常用命令
+
+| 命令 | 用途 |
+| --- | --- |
+| `pnpm dev` | 以开发模式启动 Express + Vite。 |
+| `pnpm test` | 运行 Vitest 回归测试，包括黄金星历、PDF、错误恢复、档案与认证。 |
+| `pnpm check` | 执行 TypeScript 静态检查。 |
+| `pnpm build` | 构建前端资源和生产服务端包至 `dist/`。 |
+| `pnpm start` | 在已执行构建后，以生产模式启动 `dist/index.js`。 |
+| `pnpm db:push` | 生成并应用 Drizzle 数据库迁移。 |
+| `pnpm format` | 使用 Prettier 格式化代码。 |
+
+建议在提交或部署前执行以下质量门禁：
+
+```bash
+pnpm test
+pnpm check
+pnpm build
+```
+
+## Docker 运行
+
+项目根目录的 `Dockerfile` 已包含 Node 22、Python 3、PyJHora、Swiss Ephemeris 绑定、ReportLab 以及文泉驿正黑字体。构建镜像后，将数据库和会话密钥通过运行时环境变量注入。
+
+```bash
+docker build -t vedic-web-atlas:local .
+
+docker run --rm -p 3000:3000 \
+  -e NODE_ENV=production \
+  -e PORT=3000 \
+  -e DATABASE_URL='mysql://app_user:strong_password@db-host:3306/vedic_atlas' \
+  -e JWT_SECRET='replace_with_a_long_random_secret' \
+  vedic-web-atlas:local
+```
+
+生产环境请使用受管数据库、TLS 连接、强随机 `JWT_SECRET`、受限数据库权限和可信反向代理。不要把 `.env`、数据库密码、cookie 密钥或导出的客户 PDF 提交到 Git 仓库。
+
+## 使用工作台
+
+首先输入出生日期、当地时间、性别和出生地点。地点输入框优先使用中国城市轻量索引；选中城市后会回填坐标、IANA 时区和相应时点的 UTC 偏移。也可以手动填写纬度、经度和时区。点击“生成真实印度占星报告”后，可在标签页中查看星盘、Panchanga、Dasa、Yoga、Muhurta、Shadbala、Ashtakavarga 和过境。
+
+“档案”侧栏提供用户名密码注册、登录、保存、载入、编辑、删除和选择两份档案对比。PDF 设置可选择中文或英文模板以及导出章节。若遇到临时网络、数据库或计算异常，界面会提供中文提示；计算和 PDF 可重试，档案保存可保留输入后再次提交。
+
+> 计算结果服务于传统占星研究和信息呈现，不构成医疗、法律、财务、关系或其他个人决策建议。
+
+## 故障排查
+
+| 现象 | 处理方式 |
+| --- | --- |
+| `python3`、PyJHora 或 ReportLab 找不到 | 激活 `.venv` 并重新执行 Python 安装命令；确认启动 Node 服务的终端继承了该环境。 |
+| 中文 PDF 显示异常 | 安装 `fonts-wqy-zenhei`；Docker 镜像已内置该字体。 |
+| 档案登录或列表提示数据库暂时不稳定 | 检查 `DATABASE_URL`、数据库 DNS、TLS 和防火墙；应用会对瞬态连接故障有限重试。 |
+| `pnpm db:push` 失败 | 确认目标数据库已创建、连接账户有迁移权限，并先备份生产数据。 |
+| 城市建议为空 | 可直接手动填入经纬度和 UTC 偏移；核心计算不依赖外部地点服务。 |
+| 构建提示主包大于 500 kB | 这是当前构建警告，不阻止产物生成；可后续对高密度结果面板使用按需加载。 |
+
+## 开源与许可
+
+应用界面、服务器适配代码和部署配置应与所使用的上游组件许可一并审查。特别是，PyJHora 使用 AGPL-3.0 许可，Swiss Ephemeris 提供 AGPL 与专业许可路径；本项目当前按 AGPL 路线组织。向网络用户提供本应用时，应提供完整的对应源码、保留许可证和版权声明，并核对任何额外依赖的许可义务。[1] [2]
+
+如计划闭源、嵌入商业 SaaS 或以不满足 AGPL 条件的方式分发，请在部署前向版权方和专业法律顾问核实许可方案。
+
+## 参考资料
+
+[1] [PyJHora GitHub 仓库与许可信息](https://github.com/naturalstupid/PyJHora)
+
+[2] [Swiss Ephemeris 许可说明](https://www.astro.com/swisseph/swephinfo_e.htm)
