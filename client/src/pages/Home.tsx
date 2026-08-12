@@ -36,18 +36,46 @@ type ChartItem = {
   nakshatra: { number: number; name: string; pada: number; lord: string };
 };
 
+type DasaNode = {
+  id: string;
+  path: string[];
+  level: "Mahadasa" | "Bhukti" | "Antara";
+  lord: string;
+  start: string;
+  end: string;
+  years: number;
+  status: "当前" | "未来" | "已结束";
+  current: boolean;
+  analysis: { traditionalTheme: string; placement: string; strength: string; scope: string };
+  children: DasaNode[];
+};
+
+type CompatibilityResult = {
+  score: number;
+  maximum: number;
+  method: string;
+  components: { key?: string; name: string; score: number; maximum?: number }[];
+  additional?: { key: string; name: string; matched: boolean }[];
+  chartContext?: { d1Moon: { left: string; right: string; distance: number }; d9Moon: { left: string; right: string; distance: number } };
+  source?: { label: string; url: string };
+  scope?: string;
+  direction?: { mode: "traditional-gendered" | "profile-order"; boyProfile: "A" | "B" | null; girlProfile: "A" | "B" | null; label: string };
+};
+
 type CalculationResult = {
   engine: { name: string; license: string; ayanamsa: string; ayanamsaValue: number; zodiac: string };
-  input: { date: string; time: string; calendar: string; placeName: string; latitude: number; longitude: number; latitudeDms: string; longitudeDms: string; timezone: number; varnadaMethod: number; includeTraditionalPoints: boolean };
+  input: { date: string; time: string; gender: "FEMALE" | "MALE" | "UNSPECIFIED"; calendar: string; placeName: string; latitude: number; longitude: number; latitudeDms: string; longitudeDms: string; timezone: number; varnadaMethod: number; includeTraditionalPoints: boolean };
   selectedChart: { factor: number; label: string; items: ChartItem[] };
   rasi: ChartItem[];
   navamsa: ChartItem[];
   panchanga: { weekday: string; tithi: { number: number; paksha: string; name: string; startTime: string; endTime: string; percentLeft: number }; nakshatra: { number: number; name: string; pada: number; lord: string; startTime: string; endTime: string; percentLeft: number }; yoga: { number: number; name: string; startTime: string; endTime: string; percentLeft: number }; karana: { number: number; name: string; startTime: string; endTime: string; percentLeft: number }; lunarMonth: { number: number; name: string; isAdhika: boolean; isNija: boolean }; sunrise: string; sunset: string; dayLength: string; nightLength: string };
   vimsottari: { lord: string; start: string; end: string; years: number }[];
+  dasaTimeline: { nodes: DasaNode[]; currentPath: string[]; asOf: string; source: { label: string; url: string }; scope: string };
   shadbala: { planet: string; virupas: number; rupas: number; isStrong: boolean }[];
   sarvashtakavarga: { sign: string; signIndex: number; points: number }[];
   transits: ChartItem[];
-  yogas: { name: string; matched: boolean; rule: string }[];
+  yogas: { id: string; category: string; chart: string; name: string; matched: boolean; rule: string; traditionalNote: string; source: { label: string; url: string } }[];
+  yogaMeta: { catalogCount: number; matchedCount: number; sources: { category: string; label: string; url: string }[]; scope: string };
   muhurta: { abhijit: string[]; rahuKalam: string[]; yamaganda: string[]; gulikai: string[]; durmuhurtam: string[] };
   fineDasa: { maha: string; bhukti: string; antara: string; antaras: { lord: string; start: string; end: string; current: boolean }[] };
   charaKarakas: { karaka: string; planet: string }[];
@@ -61,6 +89,10 @@ type CalculationResult = {
 
 const signShort = ["Ar", "Ta", "Ge", "Ca", "Le", "Vi", "Li", "Sc", "Sg", "Cp", "Aq", "Pi"];
 const divisionalChoices = [1, 2, 3, 4, 7, 9, 10, 12, 16, 20, 24, 27, 30, 40, 45, 60];
+const pdfSectionChoices = [
+  ["overview", "总览与参数"], ["charts", "Rasi 与分盘图"], ["panchanga", "Panchanga"], ["derived", "Karaka 与派生点"],
+  ["dasaYoga", "Dasa 与 Yoga"], ["muhurta", "Muhurta"], ["strength", "力量与 Ashtakavarga"], ["divisions", "分盘总览"], ["compatibility", "Compatibility"],
+] as const;
 const vargaThemes = {
   core: { label: "本命与心性", note: "D1 观察本命基础，D9 观察内在取向与关系承诺。", factors: [1, 9] },
   resources: { label: "财富与居所", note: "D2、D4 与 D16 对应资源、居所与舒适相关主题。", factors: [2, 4, 16] },
@@ -116,23 +148,79 @@ function ResultTable({ items, detailed = false }: { items: ChartItem[]; detailed
   );
 }
 
-function ComparisonPanel({ left, right, labels, compatibility }: { left: CalculationResult; right: CalculationResult; labels: [string, string]; compatibility?: { score: number; maximum: number; method: string; components: { name: string; score: number }[] } }) {
+function findDasaNode(nodes: DasaNode[], id: string | null): DasaNode | null {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    const child = findDasaNode(node.children, id);
+    if (child) return child;
+  }
+  return null;
+}
+
+function DasaTimeline({ timeline }: { timeline: CalculationResult["dasaTimeline"] }) {
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(timeline.currentPath.slice(0, -1)));
+  const [selectedId, setSelectedId] = useState<string | null>(() => timeline.currentPath.at(-1) ?? timeline.nodes[0]?.id ?? null);
+  const selected = findDasaNode(timeline.nodes, selectedId) ?? timeline.nodes[0] ?? null;
+
+  const selectNode = (node: DasaNode) => {
+    setSelectedId(node.id);
+    if (node.children.length) {
+      setExpanded(current => {
+        const next = new Set(current);
+        next.has(node.id) ? next.delete(node.id) : next.add(node.id);
+        return next;
+      });
+    }
+  };
+
+  const renderNode = (node: DasaNode, depth: number) => (
+    <Fragment key={node.id}>
+      <button
+        type="button"
+        className={`dasa-node depth-${depth}${node.current ? " current" : ""}${selected?.id === node.id ? " selected" : ""}`}
+        style={{ "--node-depth": depth } as React.CSSProperties}
+        onClick={() => selectNode(node)}
+        aria-expanded={node.children.length ? expanded.has(node.id) : undefined}
+      >
+        <span className="dasa-node-toggle">{node.children.length ? <ChevronDown size={14} className={expanded.has(node.id) ? "open" : ""} /> : <i />}</span>
+        <span className="dasa-node-lord"><b>{node.lord}</b><small>{node.level}</small></span>
+        <span className="dasa-node-dates">{node.start} <em>→</em> {node.end}</span>
+        <span className={`dasa-node-status ${node.status}`}>{node.status}</span>
+      </button>
+      {node.children.length > 0 && expanded.has(node.id) && node.children.map(child => renderNode(child, depth + 1))}
+    </Fragment>
+  );
+
+  return (
+    <div className="dasa-explorer">
+      <div className="dasa-intro"><span className="section-tag">VIMSHOTTARI / CLICKABLE TIMELINE</span><h3>Vimsottari 节点时间轴</h3><p>点击每个周期，逐层展开 Mahadasa → Bhukti → Antara；当前节点以出生盘位置与六力作为研究参照显示。</p></div>
+      <div className="dasa-explorer-grid">
+        <div className="dasa-tree" role="tree" aria-label="Vimsottari Dasa 时间轴">{timeline.nodes.map(node => renderNode(node, 0))}</div>
+        {selected && <aside className="dasa-node-analysis" aria-live="polite"><span className="section-tag">NODE ANALYSIS / {selected.level}</span><h4>{selected.path.join(" / ")}</h4><div className="node-analysis-meta"><span>{selected.start}</span><span>至</span><span>{selected.end}</span><b>{selected.years.toFixed(2)} 年</b></div><p><strong>传统主题：</strong>{selected.analysis.traditionalTheme}</p><p><strong>出生盘位置：</strong>{selected.analysis.placement}</p><p><strong>力量参照：</strong>{selected.analysis.strength}</p><small>{selected.analysis.scope}</small></aside>}
+      </div>
+      <p className="section-scope">{timeline.scope} 数据截至：{timeline.asOf}。<a href={timeline.source.url} target="_blank" rel="noreferrer">{timeline.source.label} ↗</a></p>
+    </div>
+  );
+}
+
+function ComparisonPanel({ left, right, labels, compatibility }: { left: CalculationResult; right: CalculationResult; labels: [string, string]; compatibility?: CompatibilityResult }) {
   const selected = (result: CalculationResult, body: string) => result.rasi.find(item => item.body === body);
   const fields = ["Ascendant", "Sun", "Moon", "Jupiter", "Venus"].map(body => ({ body, left: selected(left, body), right: selected(right, body) }));
   const exportReport = () => {
     const lines = [`# Vedic Web Atlas 双档案研究报告`, ``, `## 档案 A：${labels[0]}`, `- 输入：${left.input.date} ${left.input.time}，${left.input.placeName}`, ``, `## 档案 B：${labels[1]}`, `- 输入：${right.input.date} ${right.input.time}，${right.input.placeName}`, ``, `## 行星对照`, ...fields.map(field => `- ${field.body}：A ${field.left?.sign ?? "—"} ${field.left?.formattedDegree ?? ""}；B ${field.right?.sign ?? "—"} ${field.right?.formattedDegree ?? ""}`)];
-    if (compatibility) lines.push(``, `## Compatibility`, `- 方法：${compatibility.method}`, `- Ashta Koota：${compatibility.score.toFixed(1)} / ${compatibility.maximum}`, ...compatibility.components.map(component => `- ${component.name}：${component.score}`), `- 范围：当前仅提供北印度 Ashta Koota 八项分数；不等同于完整合盘、关系建议或未来预测。`);
+    if (compatibility) lines.push(``, `## Compatibility`, `- 方法：${compatibility.method}`, `- Ashta Koota：${compatibility.score.toFixed(1)} / ${compatibility.maximum}`, ...compatibility.components.map(component => `- ${component.name}：${component.score}${component.maximum ? ` / ${component.maximum}` : ""}`), ...(compatibility.additional ?? []).map(item => `- ${item.name}：${item.matched ? "匹配" : "未匹配"}`), `- 范围：${compatibility.scope ?? "传统规则分项，不等同于关系建议或未来预测。"}`, `- 规则来源：${compatibility.source?.url ?? "PyJHora compatibility.py"}`);
     lines.push(``, `> 说明：本报告呈现真实星历计算结果与分项，不构成个人关系、医疗、法律或财务结论。`, ``);
     const text = lines.join("\n");
     const url = URL.createObjectURL(new Blob([text], { type: "text/markdown;charset=utf-8" }));
     const anchor = document.createElement("a"); anchor.href = url; anchor.download = "vedic-web-atlas-comparison.md"; anchor.click(); URL.revokeObjectURL(url);
   };
-  return <section className="comparison-panel"><div className="comparison-title"><span className="section-tag">PROFILE COMPARISON</span><h3>双档案对比</h3><p>并列显示两个独立输入的真实计算位置；不自动生成关系结论。</p><button className="report-download" onClick={exportReport}><Download size={13} /> 下载研究报告 (.md)</button></div><div className="comparison-grid"><div className="comparison-name">A / {labels[0]}</div><div className="comparison-name">B / {labels[1]}</div>{fields.map(field => <Fragment key={field.body}><div className="comparison-cell"><b>{field.body}</b><span>{field.left?.sign} {field.left?.formattedDegree}</span></div><div className="comparison-cell"><b>{field.body}</b><span>{field.right?.sign} {field.right?.formattedDegree}</span></div></Fragment>)}</div>{compatibility && <div className="compatibility-score"><div><span>ASHTA KOOTA</span><b>{compatibility.score.toFixed(1)} <small>/ {compatibility.maximum}</small></b></div><p>{compatibility.method}</p><div className="koota-list">{compatibility.components.map(component => <span key={component.name}>{component.name} <b>{component.score}</b></span>)}</div><small className="compatibility-scope">范围：当前仅提供北印度 Ashta Koota 八项分数；不等同于完整合盘、关系建议或未来预测。</small></div>}</section>;
+  return <section className="comparison-panel"><div className="comparison-title"><span className="section-tag">PROFILE COMPARISON</span><h3>双档案对比</h3><p>并列显示两个独立输入的真实计算位置；不自动生成关系结论。</p><button className="report-download" onClick={exportReport}><Download size={13} /> 下载研究报告 (.md)</button></div><div className="comparison-grid"><div className="comparison-name">A / {labels[0]}</div><div className="comparison-name">B / {labels[1]}</div>{fields.map(field => <Fragment key={field.body}><div className="comparison-cell"><b>{field.body}</b><span>{field.left?.sign} {field.left?.formattedDegree}</span></div><div className="comparison-cell"><b>{field.body}</b><span>{field.right?.sign} {field.right?.formattedDegree}</span></div></Fragment>)}</div>{compatibility && <div className="compatibility-score"><div><span>ASHTA KOOTA / NORTH</span><b>{compatibility.score.toFixed(1)} <small>/ {compatibility.maximum}</small></b></div><p>{compatibility.method}</p>{compatibility.direction && <p className="compatibility-direction">计算顺序：{compatibility.direction.label}</p>}<div className="koota-list expanded">{compatibility.components.map(component => <span key={component.name}>{component.name} <b>{component.score}{component.maximum ? ` / ${component.maximum}` : ""}</b></span>)}</div>{compatibility.additional && <div className="porutham-list"><b>辅助 Porutham</b>{compatibility.additional.map(item => <span key={item.key} className={item.matched ? "match" : ""}>{item.name}：{item.matched ? "匹配" : "未匹配"}</span>)}</div>}{compatibility.chartContext && <div className="compatibility-context"><b>月亮位置对照（事实数据）</b><span>D1：{compatibility.chartContext.d1Moon.left} ↔ {compatibility.chartContext.d1Moon.right} · 相距第 {compatibility.chartContext.d1Moon.distance} 宫</span><span>D9：{compatibility.chartContext.d9Moon.left} ↔ {compatibility.chartContext.d9Moon.right} · 相距第 {compatibility.chartContext.d9Moon.distance} 宫</span></div>}<small className="compatibility-scope">范围：{compatibility.scope ?? "传统规则分项，不等同于完整合盘、关系建议或未来预测。"}{compatibility.source && <> <a href={compatibility.source.url} target="_blank" rel="noreferrer">{compatibility.source.label} ↗</a></>}</small></div>}</section>;
 }
 
 export default function Home() {
   const [date, setDate] = useState("1996-12-07");
   const [time, setTime] = useState("10:34");
+  const [gender, setGender] = useState<"FEMALE" | "MALE" | "UNSPECIFIED">("UNSPECIFIED");
   const [placeName, setPlaceName] = useState("Chennai, India");
   const [latitude, setLatitude] = useState("13.0878");
   const [longitude, setLongitude] = useState("80.2785");
@@ -143,16 +231,20 @@ export default function Home() {
   const [vargaTheme, setVargaTheme] = useState<keyof typeof vargaThemes>("core");
   const [varnadaMethod, setVarnadaMethod] = useState<1 | 2 | 3 | 4>(1);
   const [includeTraditionalPoints, setIncludeTraditionalPoints] = useState(true);
+  const [pdfLanguage, setPdfLanguage] = useState<"zh-CN" | "en">("zh-CN");
+  const [pdfSections, setPdfSections] = useState<string[]>(() => pdfSectionChoices.map(([key]) => key));
   const [activeTab, setActiveTab] = useState<"chart" | "details" | "panchanga" | "dasa" | "fineDasa" | "yogas" | "muhurta" | "strength" | "ashtaka" | "transits">("chart");
   const [result, setResult] = useState<CalculationResult | null>(null);
+  const [reportInput, setReportInput] = useState<ProfileChartInput & { varnadaMethod: 1 | 2 | 3 | 4; includeTraditionalPoints: boolean } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [timezoneMeta, setTimezoneMeta] = useState<{ timeZoneId: string; formattedOffset: string; dstApplied: boolean; warning: string | null } | null>(null);
   const [profilesOpen, setProfilesOpen] = useState(false);
-  const [comparison, setComparison] = useState<{ left: CalculationResult; right: CalculationResult; labels: [string, string]; compatibility?: { score: number; maximum: number; method: string; components: { name: string; score: number }[] } } | null>(null);
+  const [comparison, setComparison] = useState<{ left: CalculationResult; right: CalculationResult; labels: [string, string]; compatibility?: CompatibilityResult } | null>(null);
 
   const calculate = trpc.astrology.calculate.useMutation({
-    onSuccess: data => {
+    onSuccess: (data, variables) => {
       setResult(data as CalculationResult);
+      setReportInput({ ...variables, gender: variables.gender ?? "UNSPECIFIED", varnadaMethod: (variables.varnadaMethod ?? 1) as 1 | 2 | 3 | 4, includeTraditionalPoints: variables.includeTraditionalPoints ?? true });
       setActiveTab("chart");
       setFormError(null);
     },
@@ -176,7 +268,7 @@ export default function Home() {
       setFormError("请填写有效的经度、纬度和时区偏移量。");
       return;
     }
-    calculate.mutate({ date: normalizedDate, time: normalizedTime, placeName, latitude: lat, longitude: lon, timezone: tz, calendar, ayanamsa, divisionalFactor, varnadaMethod, includeTraditionalPoints });
+    calculate.mutate({ date: normalizedDate, time: normalizedTime, gender, placeName, latitude: lat, longitude: lon, timezone: tz, calendar, ayanamsa, divisionalFactor, varnadaMethod, includeTraditionalPoints });
   }
 
   function loadChennaiPreset() {
@@ -184,13 +276,17 @@ export default function Home() {
   }
 
   function downloadPdf() {
-    if (!result) return;
-    pdfReport.mutate({ result, comparison: comparison ? { compatibility: comparison.compatibility } : undefined }, { onSuccess: file => { const link = document.createElement("a"); link.href = `data:application/pdf;base64,${file.base64}`; link.download = file.filename; link.click(); } });
+    if (!result || !reportInput) return;
+    pdfReport.mutate({ input: reportInput, comparison: comparison ? { compatibility: comparison.compatibility } : undefined, options: { language: pdfLanguage, sections: pdfSections as (typeof pdfSectionChoices)[number][0][] } }, { onSuccess: file => { const link = document.createElement("a"); link.href = `data:application/pdf;base64,${file.base64}`; link.download = file.filename; link.click(); } });
   }
 
-  const currentProfile: ProfileChartInput = { date, time, calendar, placeName, latitude: Number(latitude), longitude: Number(longitude), timezone: Number(timezone), timeZoneId: timezoneMeta?.timeZoneId, ayanamsa, divisionalFactor };
+  function togglePdfSection(key: string) {
+    setPdfSections(current => current.includes(key) ? (current.length === 1 ? current : current.filter(item => item !== key)) : [...current, key]);
+  }
+
+  const currentProfile: ProfileChartInput = { date, time, gender, calendar, placeName, latitude: Number(latitude), longitude: Number(longitude), timezone: Number(timezone), timeZoneId: timezoneMeta?.timeZoneId, ayanamsa, divisionalFactor };
   function loadProfile(profile: ProfileChartInput) {
-    setDate(profile.date); setTime(profile.time); setCalendar(profile.calendar); setPlaceName(profile.placeName); setLatitude(String(profile.latitude)); setLongitude(String(profile.longitude)); setTimezone(String(profile.timezone)); setAyanamsa(profile.ayanamsa); setDivisionalFactor(profile.divisionalFactor); setTimezoneMeta(profile.timeZoneId ? { timeZoneId: profile.timeZoneId, formattedOffset: `UTC${profile.timezone >= 0 ? "+" : ""}${profile.timezone}`, dstApplied: false, warning: null } : null);
+    setDate(profile.date); setTime(profile.time); setGender(profile.gender); setCalendar(profile.calendar); setPlaceName(profile.placeName); setLatitude(String(profile.latitude)); setLongitude(String(profile.longitude)); setTimezone(String(profile.timezone)); setAyanamsa(profile.ayanamsa); setDivisionalFactor(profile.divisionalFactor); setTimezoneMeta(profile.timeZoneId ? { timeZoneId: profile.timeZoneId, formattedOffset: `UTC${profile.timezone >= 0 ? "+" : ""}${profile.timezone}`, dstApplied: false, warning: null } : null);
   }
 
   const displayChart = result?.selectedChart.factor === 1 ? result.rasi : result?.selectedChart.items;
@@ -208,7 +304,7 @@ export default function Home() {
         <aside className="input-sidebar">
           <div className="sidebar-heading"><span className="section-tag">INPUT / 01</span><h1>出生资料<br /><em>与计算参数</em></h1><p>所有结果均由服务端 PyJHora 与 Swiss Ephemeris 计算，而非演示数据。</p></div>
           <form onSubmit={submit} className="chart-form">
-            <div className="field-grid two"><label><span>出生日期</span><input type="date" value={date} onChange={event => setDate(event.target.value)} required /></label><label><span>当地时间</span><input type="time" value={time} onChange={event => setTime(event.target.value)} required /></label></div>
+            <div className="field-grid three"><label><span>出生日期</span><input type="date" value={date} onChange={event => setDate(event.target.value)} required /></label><label><span>当地时间</span><input type="time" value={time} onChange={event => setTime(event.target.value)} required /></label><label><span>性别</span><select value={gender} onChange={event => setGender(event.target.value as typeof gender)}><option value="UNSPECIFIED">未说明</option><option value="FEMALE">女</option><option value="MALE">男</option></select></label></div>
             <LocationSearch value={placeName} date={date} time={time} calendar={calendar} onChange={setPlaceName} onResolved={location => { setLatitude(location.latitude.toFixed(4)); setLongitude(location.longitude.toFixed(4)); setTimezone(String(location.offsetHours)); setTimezoneMeta(location); }} />
             <button type="button" onClick={loadChennaiPreset} className="preset-button"><MapPin size={13} /> 使用 Chennai 校验样例</button>
             <div className="field-grid three"><label><span>纬度</span><input inputMode="decimal" value={latitude} onChange={event => setLatitude(event.target.value)} /></label><label><span>经度</span><input inputMode="decimal" value={longitude} onChange={event => setLongitude(event.target.value)} /></label><label><span>UTC</span><input inputMode="decimal" value={timezone} onChange={event => setTimezone(event.target.value)} /></label></div>
@@ -258,14 +354,14 @@ export default function Home() {
               </div>
             )}
             {activeTab === "panchanga" && <div className="panchanga-grid"><div className="panchanga-hero"><Sun size={22} /><span className="section-tag">FIVE-LIMB PANCHANGA</span><h3>{result.panchanga.weekday}</h3><p>{result.panchanga.lunarMonth.name} · 日出至次日日出为 Vedic weekday。</p></div><div className="panchanga-card"><span>Tithi</span><b>{result.panchanga.tithi.paksha} {result.panchanga.tithi.name}</b><small>#{result.panchanga.tithi.number} · {result.panchanga.tithi.startTime}–{result.panchanga.tithi.endTime} · 余 {result.panchanga.tithi.percentLeft}%</small></div><div className="panchanga-card"><span>Nakshatra</span><b>{result.panchanga.nakshatra.name}</b><small>#{result.panchanga.nakshatra.number} · Pada {result.panchanga.nakshatra.pada} · {result.panchanga.nakshatra.lord} · 余 {result.panchanga.nakshatra.percentLeft}%</small></div><div className="panchanga-card"><span>Yoga</span><b>{result.panchanga.yoga.name}</b><small>#{result.panchanga.yoga.number} · {result.panchanga.yoga.startTime}–{result.panchanga.yoga.endTime} · 余 {result.panchanga.yoga.percentLeft}%</small></div><div className="panchanga-card"><span>Karana</span><b>{result.panchanga.karana.name}</b><small>#{result.panchanga.karana.number} · {result.panchanga.karana.startTime}–{result.panchanga.karana.endTime} · 余 {result.panchanga.karana.percentLeft}%</small></div><div className="panchanga-card"><span>Sunrise / Sunset</span><b>{result.panchanga.sunrise} / {result.panchanga.sunset}</b><small>昼 {result.panchanga.dayLength} · 夜 {result.panchanga.nightLength}</small></div></div>}
-            {activeTab === "dasa" && <div className="dasa-panel"><div className="dasa-intro"><span className="section-tag">VIMSHOTTARI / 120 YEARS</span><h3>Mahadasa 时间轴</h3><p>按出生时月亮宿与当前参数计算。周期起止日为当地时间近似展示。</p></div><div className="dasa-list">{result.vimsottari.map((period, index) => <div className="dasa-row" key={`${period.lord}-${period.start}`}><span className="dasa-index">{String(index + 1).padStart(2, "0")}</span><b>{period.lord}</b><span>{period.start}</span><span>{period.end}</span><span className="dasa-years">{period.years} 年</span></div>)}</div></div>}
+            {activeTab === "dasa" && <DasaTimeline timeline={result.dasaTimeline} />}
             {activeTab === "fineDasa" && <div className="dasa-panel"><div className="dasa-intro"><span className="section-tag">CURRENT VIMSOTTARI SUB-PERIOD</span><h3>{result.fineDasa.maha} / {result.fineDasa.bhukti} / {result.fineDasa.antara}</h3><p>当前 Mahadasa、Bhukti 与 Antara 由 PyJHora 依次计算；列表显示该 Bhukti 下的九个 Antara。</p></div><div className="dasa-list">{result.fineDasa.antaras.map((period, index) => <div className="dasa-row" key={`${period.lord}-${period.start}`}><span className="dasa-index">{String(index + 1).padStart(2, "0")}</span><b>{period.lord}</b><span>{period.start}</span><span>{period.end}</span><span className="dasa-years">{period.current ? "当前" : ""}</span></div>)}</div></div>}
-            {activeTab === "yogas" && <div className="analysis-panel"><span className="section-tag">RULE-TRACEABLE YOGAS</span><h3>已命中的 Yoga</h3>{result.yogas.length ? result.yogas.map(yoga => <article key={yoga.name}><b>{yoga.name}</b><p>{yoga.rule}</p></article>) : <p>当前规则集内没有命中的 Yoga；这不是对全部传统 Yoga 的穷尽性判断。</p>}</div>}
+            {activeTab === "yogas" && <div className="analysis-panel yoga-panel"><span className="section-tag">RULE-TRACEABLE YOGAS</span><h3>PyJHora 已命中的 Yoga</h3><p className="analysis-summary">当前 D1 检测到 {result.yogaMeta.matchedCount} 项；本次扫描的 PyJHora Yoga / Raja Yoga 目录规则数为 {result.yogaMeta.catalogCount}。每项均保留计算实现来源。</p>{result.yogas.length ? result.yogas.map(yoga => <article key={yoga.id}><div className="yoga-title-row"><div><span>{yoga.category} · {yoga.chart}</span><b>{yoga.name}</b></div><a href={yoga.source.url} target="_blank" rel="noreferrer">{yoga.source.label} ↗</a></div><p><strong>匹配条件：</strong>{yoga.rule}</p>{yoga.traditionalNote && <p className="yoga-note"><strong>传统文本摘要：</strong>{yoga.traditionalNote}</p>}</article>) : <p>当前输入未命中已扫描的 PyJHora Yoga / Raja Yoga 规则；这不是对全部传统规则的穷尽性判断。</p>}<div className="rule-source-list"><b>规则来源</b>{result.yogaMeta.sources.map(source => <a key={source.category} href={source.url} target="_blank" rel="noreferrer">{source.category} · {source.label} ↗</a>)}</div><p className="section-scope">{result.yogaMeta.scope}</p></div>}
             {activeTab === "muhurta" && <div className="analysis-panel"><span className="section-tag">PANCHANGA MUHURTA WINDOWS</span><h3>地点当日 Muhurta</h3><div className="muhurta-grid">{Object.entries(result.muhurta).map(([key, value]) => <article key={key}><span>{key}</span><b>{value.join(" – ")}</b></article>)}</div><p>时间窗由输入地点、日期、时区与日出日落计算；用途须结合具体传统与场景判断。</p></div>}
             {activeTab === "strength" && <div className="strength-panel"><div className="dasa-intro"><span className="section-tag">SHADBALA / SIXFOLD STRENGTH</span><h3>行星六力</h3><p>按 PyJHora 的 Shadbala 模块计算。Rupa 是 Virupa ÷ 60；“达标”表示高于该行星最低所需强度。</p></div><div className="strength-list">{result.shadbala.map(score => <div className="strength-row" key={score.planet}><b>{score.planet}</b><div className="strength-track"><i style={{ width: `${Math.min(score.rupas / 10 * 100, 100)}%` }} /></div><span>{score.rupas.toFixed(2)} Rupa</span><span className={score.isStrong ? "strength-status good" : "strength-status"}>{score.isStrong ? "达标" : "较弱"}</span></div>)}</div></div>}
             {activeTab === "ashtaka" && <div className="ashtaka-detail"><AshtakavargaPanel scores={result.sarvashtakavarga} /><div className="detail-section"><h4>Bhinna Ashtakavarga（按行星）</h4><div className="bav-table"><div className="bav-row head"><span>行星</span><span>总分</span>{signShort.map(sign => <span key={sign}>{sign}</span>)}</div>{result.bhinnaAshtakavarga.map(item => <div className="bav-row" key={item.body}><b>{item.body}</b><b>{item.total}</b>{item.points.map((point, index) => <span key={index}>{point}</span>)}</div>)}</div></div></div>}
             {activeTab === "transits" && <div className="transit-panel"><div className="transit-intro"><Globe2 size={22} /><span className="section-tag">LIVE TRANSITS</span><h3>当前过境位置</h3><p>以输入地点的时区显示当前时间对应的恒星黄道位置；不与出生盘混合解释。</p></div><ResultTable items={result.transits.filter(item => item.body !== "Ascendant")} /></div>}
-            <div className="engine-foot"><span><span className="status-pulse" /> 已计算</span><span>{result.engine.name}</span><span>{result.engine.ayanamsa}</span><span>{result.input.calendar}</span><span>输入：{result.input.date} {result.input.time}</span><button onClick={downloadPdf} disabled={pdfReport.isPending}><Download size={12} /> {pdfReport.isPending ? "生成 PDF…" : "下载 PDF 报告"}</button><button onClick={() => window.print()}><Printer size={12} /> 打印</button></div>
+            <div className="engine-foot"><span><span className="status-pulse" /> 已计算</span><span>{result.engine.name}</span><span>{result.engine.ayanamsa}</span><span>{result.input.calendar}</span><span>输入：{result.input.date} {result.input.time}</span><details className="pdf-options"><summary>PDF 设置</summary><div className="pdf-options-popover"><label>报告语言<select value={pdfLanguage} onChange={event => setPdfLanguage(event.target.value as typeof pdfLanguage)}><option value="zh-CN">中文研究模板</option><option value="en">English research template</option></select></label><div><b>导出章节</b>{pdfSectionChoices.map(([key, label]) => <label key={key}><input type="checkbox" checked={pdfSections.includes(key)} onChange={() => togglePdfSection(key)} />{label}</label>)}</div></div></details><button onClick={downloadPdf} disabled={pdfReport.isPending}><Download size={12} /> {pdfReport.isPending ? "生成 PDF…" : "下载 PDF 报告"}</button><button onClick={() => window.print()}><Printer size={12} /> 打印</button></div>
           </>}
           {comparison && <ComparisonPanel {...comparison} />}
         </section>

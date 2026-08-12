@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 export type VedicInput = {
   date: string;
   time: string;
+  gender?: "FEMALE" | "MALE" | "UNSPECIFIED";
   placeName: string;
   latitude: number;
   longitude: number;

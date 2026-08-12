@@ -1,0 +1,1 @@
+ALTER TABLE `birth_profiles` ADD `gender` enum('FEMALE','MALE','UNSPECIFIED') DEFAULT 'UNSPECIFIED' NOT NULL;

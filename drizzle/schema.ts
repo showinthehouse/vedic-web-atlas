@@ -33,6 +33,7 @@ export const birthProfiles = mysqlTable("birth_profiles", {
   label: varchar("label", { length: 120 }).notNull(),
   birthDate: varchar("birthDate", { length: 10 }).notNull(),
   birthTime: varchar("birthTime", { length: 5 }).notNull(),
+  gender: mysqlEnum("gender", ["FEMALE", "MALE", "UNSPECIFIED"]).notNull().default("UNSPECIFIED"),
   calendar: mysqlEnum("calendar", ["GREGORIAN", "JULIAN"]).notNull().default("GREGORIAN"),
   placeName: varchar("placeName", { length: 180 }).notNull(),
   latitude: decimal("latitude", { precision: 9, scale: 6 }).notNull(),

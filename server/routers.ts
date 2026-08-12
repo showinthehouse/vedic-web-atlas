@@ -13,6 +13,7 @@ import { createPdfReport } from "./pdfReport";
 const chartInput = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   time: z.string().regex(/^\d{2}:\d{2}$/),
+  gender: z.enum(["FEMALE", "MALE", "UNSPECIFIED"]).default("UNSPECIFIED"),
   placeName: z.string().min(1).max(120),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
@@ -74,7 +75,19 @@ export const appRouter = router({
     })).mutation(({ input }) => resolveCity(input)),
   }),
   reports: router({
-    pdf: publicProcedure.input(z.object({ result: z.any(), comparison: z.any().optional() })).mutation(({ input }) => createPdfReport(input)),
+    pdf: publicProcedure.input(z.object({
+      input: chartInput,
+      comparison: z.any().optional(),
+      options: z.object({
+        language: z.enum(["zh-CN", "en"]).default("zh-CN"),
+        sections: z.array(z.enum(["overview", "charts", "panchanga", "derived", "dasaYoga", "muhurta", "strength", "divisions", "compatibility"]))
+          .min(1)
+          .default(["overview", "charts", "panchanga", "derived", "dasaYoga", "muhurta", "strength", "divisions", "compatibility"]),
+      }).optional(),
+    })).mutation(async ({ input }) => {
+      const result = await calculateVedicChart(input.input);
+      return createPdfReport({ result, comparison: input.comparison, options: input.options });
+    }),
   }),
   profiles: router({
     list: protectedProcedure.query(({ ctx }) => db.listBirthProfiles(ctx.user.id)),
@@ -84,6 +97,7 @@ export const appRouter = router({
         label: input.label,
         birthDate: input.date,
         birthTime: input.time,
+        gender: input.gender,
         calendar: input.calendar,
         placeName: input.placeName,
         latitude: String(input.latitude),
@@ -98,7 +112,7 @@ export const appRouter = router({
     }),
     update: protectedProcedure.input(profileInput.extend({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       await db.updateBirthProfile(ctx.user.id, input.id, {
-        label: input.label, birthDate: input.date, birthTime: input.time, calendar: input.calendar,
+        label: input.label, birthDate: input.date, birthTime: input.time, gender: input.gender, calendar: input.calendar,
         placeName: input.placeName, latitude: String(input.latitude), longitude: String(input.longitude), timezone: String(input.timezone),
         timeZoneId: input.timeZoneId, ayanamsa: input.ayanamsa, divisionalFactor: input.divisionalFactor, notes: input.notes,
       });

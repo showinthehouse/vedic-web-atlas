@@ -15,6 +15,13 @@
       "when": 1786562488596,
       "tag": "0001_misty_karen_page",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1786570849236,
+      "tag": "0002_mysterious_bastion",
+      "breakpoints": true
     }
   ]
 }

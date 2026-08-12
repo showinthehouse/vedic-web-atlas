@@ -126,3 +126,19 @@ KeepTogether 修复后，已以 Chennai 校验资料重新生成星盘，准备�
 新版 PDF 已从工作台下载为 `vedic-web-atlas-report (7).pdf`，经人工视觉核验共 14 页。第 2 页是五项章节目录；第 3 页以 2×2 形式嵌入 D1、D9、D10、D60 北印度分盘图，格线、中心标识、标题和天体缩写均正常绘制。第 5 页完整显示特殊 Lagna、太阳虚点及 Sanjay Rath 传统参数；第 6–7 页显示 Vimsottari、Yoga、Muhurta、Shadbala、Sarvashtakavarga 与 Bhinna Ashtakavarga；第 8–14 页连续呈现 D1–D60 分盘位置表。整份报告中中文字体、表头、页眉、页脚、页码、跨页衔接和末页免责声明均无乱码、裁切或重叠。报告后半部分采用高密度分盘汇编结构，没有单独的 Compatibility 页。
 
 自动化回归已更新并执行：`server/vedicEngine.test.ts` 覆盖传统点、方法切换及传统点禁用路径；`server/pdfReport.test.ts` 验证目录、北印度图增强后的 PDF 体积与中文字体嵌入。`pnpm check` 通过，`pnpm test` 共 8 个测试文件、14 个用例全部通过；最终生产构建仍待本轮结束前执行。
+
+## 2026-08-12：新字体、模板与性别资料回归（进行中）
+
+工作台出生资料区已新增“性别”下拉框，包含“未说明、女、男”三个显式选项。浏览器以 Chennai 校验资料选择“男”后成功重新执行真实计算；计算结果底部出现“PDF 设置”，可选择中文或 English research template，并独立勾选总览、图表、Panchanga、派生点、Dasa/Yoga、Muhurta、力量、分盘和 Compatibility 章节。
+
+服务端定向回归已通过：新 PDF 生成器使用可嵌入的 `DroidSansFallbackFull` TrueType 字体，旧 `STSong-Light` CID 字体已不再出现在产物；英文模板与选定章节可生成有效 PDF。视觉检查浏览器下载列表顶部的 `vedic-web-atlas-report (7).pdf` 时，文件仍显示此前的中文全量 14 页结构，说明该下载记录需与本轮新请求重新核对，尚不能作为英文模板视觉验收凭据。该文件的第 1–5 页在新字体下无缺字、裁切或表格重叠，但中英混排标题的英文字符间距偏松，后续将继续核验新下载产物并细调。
+
+为排除浏览器下载历史干扰，已直接调用真实 Python 引擎与 PDF 生成器生成独立文件 `vedic-web-atlas-template-check.pdf`。初次使用 `DroidSansFallbackFull` 时，英文模板首页与目录几乎空白，仅剩表格边框，说明该字体虽可嵌入，但不适合作为当前中英双语模板的唯一主字体。
+
+随后将主字体切换为 `WenQuanYiZenHei`（文泉驿正黑，TrueType Collection）后重新生成探针文件，视觉核验恢复正常：第 1 页正确显示英文标题 **Vedic Web Atlas Research Report**、Calculation overview 表格以及性别字段 **Male**；第 2 页目录仅保留已勾选的四个章节；第 3–5 页分别正确显示北印度分盘图、Rasi 位置表和英文版 Vimsottari / Yoga 可追溯规则表。中英文字符均清晰可读，未见乱码或空白页，英文标题字距也明显优于先前方案。
+
+英文模板进一步分页修复后，北印度分盘图被完整保留在第 3 页，十行 Rasi 位置表整体转入第 4 页；不再出现原来第 4 页仅有 Rahu / Ketu 两行的孤立续页。图页末尾虽留出合理空白，但四张 2×2 图形均保持比例、边线与标签可读，位置表包含完整表头与十行数据。
+
+中文研究模板也已用同一探针重新生成 `vedic-web-atlas-template-check-zh-CN.pdf` 并完成第 1–5 页视觉核验。第 1 页标题显示为“Vedic Web Atlas 占星报告”，副标题、计算总览表、性别字段“男”、坐标和引擎行均清晰可读；第 2 页目录正确只列出已勾选四项章节；第 3 页四张北印度分盘图与中文图注正常显示；第 4 页 Rasi 位置表字段“天体、星座、宫位、位置、宿主”无乱码；第 5 页 `Vimsottari 节点与 Yoga` 页面中中文标题与说明正常，英文规则表也保持可读。与旧 `STSong-Light` 相比，文泉驿正黑消除了先前较明显的乱码风险和字距异常，可作为新的默认中文 PDF 字体方案。
+
+此前浏览器导出会把完整 `result`（包含高密度时间轴和分盘数据）送入 tRPC，网关实际返回 HTTP 403。导出流程已改为仅提交经 Zod 校验的出生参数，服务端重新计算后生成 PDF。浏览器网络日志确认修复后的请求返回 HTTP 200，下载历史新增 `vedic-web-atlas-report (8).pdf`。该文件已直接视觉检查：共 7 页，第 1 页为 **Vedic Web Atlas Research Report** 英文标题与 Calculation overview，Gender 显示为 Not specified；第 2 页目录只列出四个勾选章节；其余页面仅呈现 Charts、Vimsottari/Yoga 与 Strength 内容。新下载产物由文泉驿正黑正常绘制，文本、表格和页码均清晰，证明工作台的 `language=en` 与章节过滤状态已端到端生效。
