@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, LoaderCircle, MapPin, Search, TriangleAlert } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { normalizeCalendarDate, normalizeClockTime } from "@/lib/dateInput";
 
 type CalendarType = "GREGORIAN" | "JULIAN";
 
@@ -29,6 +30,7 @@ export function LocationSearch({ value, date, time, calendar, onChange, onResolv
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [selectedDescription, setSelectedDescription] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [inputError, setInputError] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebounced(value), 280);
@@ -41,6 +43,7 @@ export function LocationSearch({ value, date, time, calendar, onChange, onResolv
   );
   const resolve = trpc.location.resolve.useMutation({
     onSuccess: resolved => {
+      setInputError(null);
       onChange(resolved.placeName);
       onResolved(resolved);
       setOpen(false);
@@ -49,8 +52,15 @@ export function LocationSearch({ value, date, time, calendar, onChange, onResolv
 
   useEffect(() => {
     if (!selectedPlaceId) return;
+    const normalizedDate = normalizeCalendarDate(date);
+    const normalizedTime = normalizeClockTime(time);
+    if (!normalizedDate || !normalizedTime) {
+      setInputError("请先完成出生日期（YYYY-MM-DD）和当地时间，再选择城市。 ");
+      return;
+    }
+    setInputError(null);
     const timer = window.setTimeout(() => {
-      resolve.mutate({ placeId: selectedPlaceId, queryLabel: selectedDescription ?? undefined, date, time, calendar });
+      resolve.mutate({ placeId: selectedPlaceId, queryLabel: selectedDescription ?? undefined, date: normalizedDate, time: normalizedTime, calendar });
     }, 250);
     return () => window.clearTimeout(timer);
     // selectedDescription does not affect the request; it is display-only.
@@ -58,6 +68,7 @@ export function LocationSearch({ value, date, time, calendar, onChange, onResolv
   }, [selectedPlaceId, selectedDescription, date, time, calendar]);
 
   function choose(placeId: string, description: string) {
+    setInputError(null);
     setSelectedPlaceId(placeId);
     setSelectedDescription(description);
     onChange(description);
@@ -68,9 +79,9 @@ export function LocationSearch({ value, date, time, calendar, onChange, onResolv
       <label><span>出生地点 / 事件地点</span><div className="location-input-wrap"><Search size={14} /><input value={value} onFocus={() => setOpen(true)} onChange={event => { setSelectedPlaceId(null); setSelectedDescription(null); onChange(event.target.value); setOpen(true); }} placeholder="输入城市，例如 Chennai 或 New York" required /></div></label>
       {open && !selectedPlaceId && suggestions.data && suggestions.data.length > 0 && <div className="city-suggestions">{suggestions.data.map(suggestion => <button type="button" key={suggestion.placeId} onMouseDown={event => event.preventDefault()} onClick={() => choose(suggestion.placeId, suggestion.description)}><MapPin size={14} /><span>{suggestion.description}</span></button>)}</div>}
       {open && suggestions.isFetching && <p className="location-status"><LoaderCircle size={12} className="spin" /> 正在检索城市…</p>}
-      {selectedDescription && !resolve.isPending && <p className="location-status success"><CheckCircle2 size={12} /> 已选择 {selectedDescription}</p>}
+      {selectedDescription && !resolve.isPending && !inputError && <p className="location-status success"><CheckCircle2 size={12} /> 已选择 {selectedDescription}</p>}
       {resolve.isPending && <p className="location-status"><LoaderCircle size={12} className="spin" /> 正在解析历史时区与夏令时…</p>}
-      {resolve.error && <p className="location-status error"><TriangleAlert size={12} /> {resolve.error.message}</p>}
+      {(inputError || resolve.error) && <p className="location-status error"><TriangleAlert size={12} /> {inputError || resolve.error?.message}</p>}
     </div>
   );
 }

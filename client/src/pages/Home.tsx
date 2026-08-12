@@ -20,6 +20,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { normalizeCalendarDate, normalizeClockTime } from "@/lib/dateInput";
 import { AshtakavargaPanel } from "@/components/AshtakavargaPanel";
 import { LocationSearch } from "@/components/LocationSearch";
 import { ProfileShelf, type ProfileChartInput } from "@/components/ProfileShelf";
@@ -146,11 +147,17 @@ export default function Home() {
     const lat = Number(latitude);
     const lon = Number(longitude);
     const tz = Number(timezone);
+    const normalizedDate = normalizeCalendarDate(date);
+    const normalizedTime = normalizeClockTime(time);
+    if (!normalizedDate || !normalizedTime) {
+      setFormError("请填写有效的出生日期（YYYY-MM-DD）和当地时间。");
+      return;
+    }
     if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(tz)) {
       setFormError("请填写有效的经度、纬度和时区偏移量。");
       return;
     }
-    calculate.mutate({ date, time, placeName, latitude: lat, longitude: lon, timezone: tz, calendar, ayanamsa, divisionalFactor });
+    calculate.mutate({ date: normalizedDate, time: normalizedTime, placeName, latitude: lat, longitude: lon, timezone: tz, calendar, ayanamsa, divisionalFactor });
   }
 
   function loadChennaiPreset() {
