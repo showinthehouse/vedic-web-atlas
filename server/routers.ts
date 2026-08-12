@@ -62,7 +62,7 @@ export const appRouter = router({
     compare: protectedProcedure.input(z.object({ left: chartInput, right: chartInput })).mutation(({ input }) => calculateVedicCompatibility(input.left, input.right)),
   }),
   location: router({
-    search: publicProcedure.input(z.object({ query: z.string().trim().min(3).max(120) })).query(({ input }) => searchCities(input.query)),
+    search: publicProcedure.input(z.object({ query: z.string().trim().min(2).max(120) })).query(({ input }) => searchCities(input.query)),
     resolve: publicProcedure.input(z.object({
       placeId: z.string().min(1),
       queryLabel: z.string().max(180).optional(),

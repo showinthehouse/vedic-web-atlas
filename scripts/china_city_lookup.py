@@ -10,6 +10,19 @@ import sysconfig
 import unicodedata
 from pathlib import Path
 
+CHINESE_ALIASES_BY_CITY = {
+    "beijing": ["北京"], "shanghai": ["上海"], "guangzhou": ["广州"], "shenzhen": ["深圳"],
+    "tianjin": ["天津"], "chongqing": ["重庆"], "hangzhou": ["杭州"], "nanjing": ["南京"],
+    "suzhou": ["苏州"], "wuhan": ["武汉"], "chengdu": ["成都"], "xian": ["西安"],
+    "zhengzhou": ["郑州"], "changsha": ["长沙"], "kunming": ["昆明"], "harbin": ["哈尔滨"],
+    "shenyang": ["沈阳"], "jinan": ["济南"], "qingdao": ["青岛"], "fuzhou": ["福州"],
+    "xiamen": ["厦门"], "nanchang": ["南昌"], "hefei": ["合肥"], "taiyuan": ["太原"],
+    "shijiazhuang": ["石家庄"], "guiyang": ["贵阳"], "nanning": ["南宁"], "haikou": ["海口"],
+    "lanzhou": ["兰州"], "xining": ["西宁"], "yinchuan": ["银川"], "urumqi": ["乌鲁木齐"],
+    "lhasa": ["拉萨"], "hohhot": ["呼和浩特"], "dalian": ["大连"], "ningbo": ["宁波"],
+    "wuxi": ["无锡"], "foshan": ["佛山"], "dongguan": ["东莞"], "zhuhai": ["珠海"],
+}
+
 
 def normalize(value: str) -> str:
     value = unicodedata.normalize("NFKD", value or "")
@@ -38,10 +51,11 @@ def make_place_id(description: str, latitude: float, longitude: float) -> str:
     return "china:" + base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
 
 
-def to_result(row: dict) -> dict:
+def to_result(row: dict, matching_alias: str | None = None) -> dict:
     name = (row.get("place_name") or "").strip()
     state = (row.get("state") or "").strip()
-    description = ", ".join(part for part in (name, state, "China") if part)
+    canonical_description = ", ".join(part for part in (name, state, "China") if part)
+    description = f"{matching_alias} · {canonical_description}" if matching_alias else canonical_description
     latitude = float(row["latitude"])
     longitude = float(row["longitude"])
     return {
@@ -64,7 +78,9 @@ def search(query: str, limit: int = 8) -> list[dict]:
         for row in csv.DictReader(file):
             if (row.get("country") or "").strip() != "China":
                 continue
-            aliases = [row.get("place_name") or "", *(row.get("alternate_names") or "").split("|")]
+            city_name = row.get("place_name") or ""
+            aliases = [city_name, *(row.get("alternate_names") or "").split("|")]
+            aliases.extend(CHINESE_ALIASES_BY_CITY.get(normalize(city_name), []))
             normalized_aliases = [normalize(alias) for alias in aliases]
             if normalized_query in normalized_aliases or any(alias.startswith(normalized_query) for alias in normalized_aliases):
                 target = exact_or_prefix
@@ -73,7 +89,8 @@ def search(query: str, limit: int = 8) -> list[dict]:
             else:
                 continue
 
-            result = to_result(row)
+            chinese_alias = next((alias for alias in aliases if re.search(r"[\u4e00-\u9fff]", alias) and normalize(alias) == normalized_query), None)
+            result = to_result(row, chinese_alias)
             if result["description"] not in seen:
                 target.append(result)
                 seen.add(result["description"])

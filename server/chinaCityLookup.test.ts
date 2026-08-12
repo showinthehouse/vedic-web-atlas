@@ -24,4 +24,20 @@ describe("China city lookup", () => {
     }));
     expect(payload.results[0]?.placeId).toMatch(/^china:/);
   });
+
+  it("supports Chinese aliases for major Chinese cities", () => {
+    const scriptPath = new URL("../scripts/china_city_lookup.py", import.meta.url).pathname;
+    const result = spawnSync("python3", [scriptPath], {
+      input: JSON.stringify({ action: "search", query: "北京" }),
+      encoding: "utf8",
+      timeout: 3_000,
+    });
+    expect(result.status).toBe(0);
+    const payload = JSON.parse(result.stdout) as { results: Array<{ description: string; latitude: number; longitude: number }> };
+    expect(payload.results).toContainEqual(expect.objectContaining({
+      description: "北京 · Beijing, Beijing, China",
+      latitude: 39.9075,
+      longitude: 116.39723,
+    }));
+  });
 });
