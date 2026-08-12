@@ -32,15 +32,17 @@ type ChartItem = {
   sign: string;
   degree: number;
   formattedDegree: string;
+  house: number;
+  nakshatra: { number: number; name: string; pada: number; lord: string };
 };
 
 type CalculationResult = {
-  engine: { name: string; license: string; ayanamsa: string };
-  input: { date: string; time: string; calendar: string; placeName: string; latitude: number; longitude: number; timezone: number };
+  engine: { name: string; license: string; ayanamsa: string; ayanamsaValue: number; zodiac: string };
+  input: { date: string; time: string; calendar: string; placeName: string; latitude: number; longitude: number; latitudeDms: string; longitudeDms: string; timezone: number };
   selectedChart: { factor: number; label: string; items: ChartItem[] };
   rasi: ChartItem[];
   navamsa: ChartItem[];
-  panchanga: { weekday: string; tithi: { number: number; paksha: string; endTime: string }; nakshatra: { number: number; name: string; pada: number; endTime: string }; sunrise: string; sunset: string };
+  panchanga: { weekday: string; tithi: { number: number; paksha: string; name: string; startTime: string; endTime: string; percentLeft: number }; nakshatra: { number: number; name: string; pada: number; lord: string; startTime: string; endTime: string; percentLeft: number }; yoga: { number: number; name: string; startTime: string; endTime: string; percentLeft: number }; karana: { number: number; name: string; startTime: string; endTime: string; percentLeft: number }; lunarMonth: { number: number; name: string; isAdhika: boolean; isNija: boolean }; sunrise: string; sunset: string; dayLength: string; nightLength: string };
   vimsottari: { lord: string; start: string; end: string; years: number }[];
   shadbala: { planet: string; virupas: number; rupas: number; isStrong: boolean }[];
   sarvashtakavarga: { sign: string; signIndex: number; points: number }[];
@@ -48,6 +50,11 @@ type CalculationResult = {
   yogas: { name: string; matched: boolean; rule: string }[];
   muhurta: { abhijit: string[]; rahuKalam: string[]; yamaganda: string[]; gulikai: string[]; durmuhurtam: string[] };
   fineDasa: { maha: string; bhukti: string; antara: string; antaras: { lord: string; start: string; end: string; current: boolean }[] };
+  charaKarakas: { karaka: string; planet: string }[];
+  specialLagnas: ChartItem[];
+  solarUpagrahas: ChartItem[];
+  divisions: { factor: number; label: string; items: ChartItem[] }[];
+  bhinnaAshtakavarga: { body: string; points: number[]; total: number }[];
 };
 
 const signShort = ["Ar", "Ta", "Ge", "Ca", "Le", "Vi", "Li", "Sc", "Sg", "Cp", "Aq", "Pi"];
@@ -87,13 +94,13 @@ function NorthIndianChart({ items, label }: { items: ChartItem[]; label: string 
   );
 }
 
-function ResultTable({ items }: { items: ChartItem[] }) {
+function ResultTable({ items, detailed = false }: { items: ChartItem[]; detailed?: boolean }) {
   return (
-    <div className="position-table">
-      <div className="position-head"><span>天体</span><span>星座</span><span>位置</span></div>
+    <div className={`position-table${detailed ? " detailed" : ""}`}>
+      <div className="position-head"><span>天体</span><span>星座</span>{detailed && <><span>宫位</span><span>位置</span><span>星宿</span><span>Pada</span><span>宿主</span></>} {!detailed && <span>位置</span>}</div>
       {items.map(item => (
         <div className="position-row" key={item.key}>
-          <span>{item.body}</span><span>{item.sign}</span><span>{item.formattedDegree}</span>
+          <span>{item.body}</span><span>{item.sign}</span>{detailed && <><span>{item.house}</span><span>{item.formattedDegree}</span><span>{item.nakshatra?.name ?? "—"}</span><span>{item.nakshatra?.pada ?? "—"}</span><span>{item.nakshatra?.lord ?? "—"}</span></>} {!detailed && <span>{item.formattedDegree}</span>}
         </div>
       ))}
     </div>
@@ -124,7 +131,7 @@ export default function Home() {
   const [calendar, setCalendar] = useState<"GREGORIAN" | "JULIAN">("GREGORIAN");
   const [ayanamsa, setAyanamsa] = useState<"LAHIRI" | "RAMAN" | "KP" | "TRUE_PUSHYA">("LAHIRI");
   const [divisionalFactor, setDivisionalFactor] = useState(1);
-  const [activeTab, setActiveTab] = useState<"chart" | "panchanga" | "dasa" | "fineDasa" | "yogas" | "muhurta" | "strength" | "ashtaka" | "transits">("chart");
+  const [activeTab, setActiveTab] = useState<"chart" | "details" | "panchanga" | "dasa" | "fineDasa" | "yogas" | "muhurta" | "strength" | "ashtaka" | "transits">("chart");
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [timezoneMeta, setTimezoneMeta] = useState<{ timeZoneId: string; formattedOffset: string; dstApplied: boolean; warning: string | null } | null>(null);
@@ -208,15 +215,39 @@ export default function Home() {
           {calculate.isPending && <div className="loading-state"><LoaderCircle size={42} className="spin" /><p>正在让星历、地点与分盘规则对齐…</p></div>}
 
           {result && <>
-            <div className="result-tabs" role="tablist"><button className={activeTab === "chart" ? "active" : ""} onClick={() => setActiveTab("chart")}><Orbit size={15} /> 星盘</button><button className={activeTab === "panchanga" ? "active" : ""} onClick={() => setActiveTab("panchanga")}><CalendarDays size={15} /> Panchanga</button><button className={activeTab === "dasa" ? "active" : ""} onClick={() => setActiveTab("dasa")}><Clock3 size={15} /> Mahadasa</button><button className={activeTab === "fineDasa" ? "active" : ""} onClick={() => setActiveTab("fineDasa")}><Clock3 size={15} /> Antardasa</button><button className={activeTab === "yogas" ? "active" : ""} onClick={() => setActiveTab("yogas")}><Sparkles size={15} /> Yoga</button><button className={activeTab === "muhurta" ? "active" : ""} onClick={() => setActiveTab("muhurta")}><Sun size={15} /> Muhurta</button><button className={activeTab === "strength" ? "active" : ""} onClick={() => setActiveTab("strength")}><Compass size={15} /> Shadbala</button><button className={activeTab === "ashtaka" ? "active" : ""} onClick={() => setActiveTab("ashtaka")}><Copy size={15} /> Ashtakavarga</button><button className={activeTab === "transits" ? "active" : ""} onClick={() => setActiveTab("transits")}><Globe2 size={15} /> 过境</button></div>
+            <div className="result-tabs" role="tablist"><button className={activeTab === "chart" ? "active" : ""} onClick={() => setActiveTab("chart")}><Orbit size={15} /> 星盘</button><button className={activeTab === "details" ? "active" : ""} onClick={() => setActiveTab("details")}><FileCode2 size={15} /> 详参</button><button className={activeTab === "panchanga" ? "active" : ""} onClick={() => setActiveTab("panchanga")}><CalendarDays size={15} /> Panchanga</button><button className={activeTab === "dasa" ? "active" : ""} onClick={() => setActiveTab("dasa")}><Clock3 size={15} /> Mahadasa</button><button className={activeTab === "fineDasa" ? "active" : ""} onClick={() => setActiveTab("fineDasa")}><Clock3 size={15} /> Antardasa</button><button className={activeTab === "yogas" ? "active" : ""} onClick={() => setActiveTab("yogas")}><Sparkles size={15} /> Yoga</button><button className={activeTab === "muhurta" ? "active" : ""} onClick={() => setActiveTab("muhurta")}><Sun size={15} /> Muhurta</button><button className={activeTab === "strength" ? "active" : ""} onClick={() => setActiveTab("strength")}><Compass size={15} /> Shadbala</button><button className={activeTab === "ashtaka" ? "active" : ""} onClick={() => setActiveTab("ashtaka")}><Copy size={15} /> Ashtakavarga</button><button className={activeTab === "transits" ? "active" : ""} onClick={() => setActiveTab("transits")}><Globe2 size={15} /> 过境</button></div>
             {activeTab === "chart" && <div className="chart-tab"><div className="chart-tab-head"><div><span className="section-tag">{displayLabel} / NORTH INDIAN</span><h3>{displayLabel === "RASI / D1" ? "本命盘 Rasi" : `目标分盘 ${displayLabel}`}</h3></div><div className="chart-key"><span className="key-dot asc" /> As = Ascendant <span className="key-dot planet" /> 其余为行星缩写</div></div><div className="chart-layout-real"><NorthIndianChart items={displayChart ?? []} label={displayLabel} /><div className="chart-data"><ResultTable items={displayChart ?? []} /></div></div><div className="secondary-chart"><div><span className="section-tag">NAVAMSA / D9</span><p>Navamsa 已同步计算；选择 D-9 作为目标分盘可在主图中展开详细位置。</p></div><div className="mini-rasi">{result.navamsa.slice(0, 5).map(item => <span key={item.key}><b>{item.body === "Ascendant" ? "As" : item.body.slice(0, 2)}</b> {item.sign}</span>)}</div></div></div>}
-            {activeTab === "panchanga" && <div className="panchanga-grid"><div className="panchanga-hero"><Sun size={22} /><span className="section-tag">DAILY PANCHANGA</span><h3>{result.panchanga.weekday}</h3><p>以出生地点与时区计算的当天 Panchanga。</p></div><div className="panchanga-card"><span>Tithi</span><b>{result.panchanga.tithi.paksha} {result.panchanga.tithi.number}</b><small>结束 {result.panchanga.tithi.endTime}</small></div><div className="panchanga-card"><span>Nakshatra</span><b>{result.panchanga.nakshatra.name}</b><small>第 {result.panchanga.nakshatra.pada} pada · 结束 {result.panchanga.nakshatra.endTime}</small></div><div className="panchanga-card"><span>Sunrise</span><b>{result.panchanga.sunrise}</b><small>当地时间</small></div><div className="panchanga-card"><span>Sunset</span><b>{result.panchanga.sunset}</b><small>当地时间</small></div></div>}
+            {activeTab === "details" && (
+              <div className="details-panel">
+                <div className="dasa-intro">
+                  <span className="section-tag">DENSE NATAL PARAMETERS</span>
+                  <h3>基础参数、Karaka 与派生点</h3>
+                  <p>参照专业报告的信息层级展示；所有数值由当前 PyJHora + Swiss Ephemeris 计算，不用示例或推断数据填充。</p>
+                </div>
+                <aside className="scope-note" role="note" aria-label="参数覆盖与当前边界">
+                  <b>参数覆盖与当前边界</b>
+                  <p><strong>已支持：</strong>Rasi、五支历、Jaimini Karaka、特殊 Lagna、太阳虚点、Sarva/Bhinna Ashtakavarga、D1–D60、Dasa、Yoga、Muhurta、Shadbala。</p>
+                  <p><strong>当前未纳入：</strong>Varnada Lagna、Yogi/Avayogi、Maandi/Gulika；因流派与计算口径差异暂不在本版呈现。</p>
+                </aside>
+                <div className="parameter-grid">
+                  <article><span>黄道与岁差</span><b>{result.engine.zodiac} · {result.engine.ayanamsa}</b><small>岁差值 {result.engine.ayanamsaValue.toFixed(6)}°</small></article>
+                  <article><span>出生位置</span><b>{result.input.latitudeDms} · {result.input.longitudeDms}</b><small>UTC{result.input.timezone >= 0 ? "+" : ""}{result.input.timezone}</small></article>
+                  <article><span>Lunar month</span><b>{result.panchanga.lunarMonth.name}</b><small>第 {result.panchanga.lunarMonth.number} 月{result.panchanga.lunarMonth.isAdhika ? " · Adhika" : ""}{result.panchanga.lunarMonth.isNija ? " · Nija" : ""}</small></article>
+                  <article><span>日出 / 日落</span><b>{result.panchanga.sunrise} / {result.panchanga.sunset}</b><small>昼 {result.panchanga.dayLength} · 夜 {result.panchanga.nightLength}</small></article>
+                </div>
+                <div className="detail-section"><h4>Jaimini Chara Karaka</h4><div className="compact-pairs">{result.charaKarakas.map(item => <span key={item.karaka}><b>{item.karaka}</b>{item.planet}</span>)}</div></div>
+                <div className="detail-section"><h4>特殊 Lagna 与派生点（D1）</h4><ResultTable items={result.specialLagnas} detailed /></div>
+                <div className="detail-section"><h4>太阳虚点 | Solar Upagraha（D1）</h4><ResultTable items={result.solarUpagrahas} detailed /></div>
+                <div className="detail-section"><h4>分盘总览</h4><div className="varga-summary">{result.divisions.map(division => { const asc = division.items.find(item => item.body === "Ascendant"); const sun = division.items.find(item => item.body === "Sun"); const moon = division.items.find(item => item.body === "Moon"); return <article key={division.factor}><b>{division.label}</b><span>As {asc?.sign} {asc?.formattedDegree}</span><span>Su {sun?.sign} · Mo {moon?.sign}</span></article>; })}</div></div>
+              </div>
+            )}
+            {activeTab === "panchanga" && <div className="panchanga-grid"><div className="panchanga-hero"><Sun size={22} /><span className="section-tag">FIVE-LIMB PANCHANGA</span><h3>{result.panchanga.weekday}</h3><p>{result.panchanga.lunarMonth.name} · 日出至次日日出为 Vedic weekday。</p></div><div className="panchanga-card"><span>Tithi</span><b>{result.panchanga.tithi.paksha} {result.panchanga.tithi.name}</b><small>#{result.panchanga.tithi.number} · {result.panchanga.tithi.startTime}–{result.panchanga.tithi.endTime} · 余 {result.panchanga.tithi.percentLeft}%</small></div><div className="panchanga-card"><span>Nakshatra</span><b>{result.panchanga.nakshatra.name}</b><small>#{result.panchanga.nakshatra.number} · Pada {result.panchanga.nakshatra.pada} · {result.panchanga.nakshatra.lord} · 余 {result.panchanga.nakshatra.percentLeft}%</small></div><div className="panchanga-card"><span>Yoga</span><b>{result.panchanga.yoga.name}</b><small>#{result.panchanga.yoga.number} · {result.panchanga.yoga.startTime}–{result.panchanga.yoga.endTime} · 余 {result.panchanga.yoga.percentLeft}%</small></div><div className="panchanga-card"><span>Karana</span><b>{result.panchanga.karana.name}</b><small>#{result.panchanga.karana.number} · {result.panchanga.karana.startTime}–{result.panchanga.karana.endTime} · 余 {result.panchanga.karana.percentLeft}%</small></div><div className="panchanga-card"><span>Sunrise / Sunset</span><b>{result.panchanga.sunrise} / {result.panchanga.sunset}</b><small>昼 {result.panchanga.dayLength} · 夜 {result.panchanga.nightLength}</small></div></div>}
             {activeTab === "dasa" && <div className="dasa-panel"><div className="dasa-intro"><span className="section-tag">VIMSHOTTARI / 120 YEARS</span><h3>Mahadasa 时间轴</h3><p>按出生时月亮宿与当前参数计算。周期起止日为当地时间近似展示。</p></div><div className="dasa-list">{result.vimsottari.map((period, index) => <div className="dasa-row" key={`${period.lord}-${period.start}`}><span className="dasa-index">{String(index + 1).padStart(2, "0")}</span><b>{period.lord}</b><span>{period.start}</span><span>{period.end}</span><span className="dasa-years">{period.years} 年</span></div>)}</div></div>}
             {activeTab === "fineDasa" && <div className="dasa-panel"><div className="dasa-intro"><span className="section-tag">CURRENT VIMSOTTARI SUB-PERIOD</span><h3>{result.fineDasa.maha} / {result.fineDasa.bhukti} / {result.fineDasa.antara}</h3><p>当前 Mahadasa、Bhukti 与 Antara 由 PyJHora 依次计算；列表显示该 Bhukti 下的九个 Antara。</p></div><div className="dasa-list">{result.fineDasa.antaras.map((period, index) => <div className="dasa-row" key={`${period.lord}-${period.start}`}><span className="dasa-index">{String(index + 1).padStart(2, "0")}</span><b>{period.lord}</b><span>{period.start}</span><span>{period.end}</span><span className="dasa-years">{period.current ? "当前" : ""}</span></div>)}</div></div>}
             {activeTab === "yogas" && <div className="analysis-panel"><span className="section-tag">RULE-TRACEABLE YOGAS</span><h3>已命中的 Yoga</h3>{result.yogas.length ? result.yogas.map(yoga => <article key={yoga.name}><b>{yoga.name}</b><p>{yoga.rule}</p></article>) : <p>当前规则集内没有命中的 Yoga；这不是对全部传统 Yoga 的穷尽性判断。</p>}</div>}
             {activeTab === "muhurta" && <div className="analysis-panel"><span className="section-tag">PANCHANGA MUHURTA WINDOWS</span><h3>地点当日 Muhurta</h3><div className="muhurta-grid">{Object.entries(result.muhurta).map(([key, value]) => <article key={key}><span>{key}</span><b>{value.join(" – ")}</b></article>)}</div><p>时间窗由输入地点、日期、时区与日出日落计算；用途须结合具体传统与场景判断。</p></div>}
             {activeTab === "strength" && <div className="strength-panel"><div className="dasa-intro"><span className="section-tag">SHADBALA / SIXFOLD STRENGTH</span><h3>行星六力</h3><p>按 PyJHora 的 Shadbala 模块计算。Rupa 是 Virupa ÷ 60；“达标”表示高于该行星最低所需强度。</p></div><div className="strength-list">{result.shadbala.map(score => <div className="strength-row" key={score.planet}><b>{score.planet}</b><div className="strength-track"><i style={{ width: `${Math.min(score.rupas / 10 * 100, 100)}%` }} /></div><span>{score.rupas.toFixed(2)} Rupa</span><span className={score.isStrong ? "strength-status good" : "strength-status"}>{score.isStrong ? "达标" : "较弱"}</span></div>)}</div></div>}
-            {activeTab === "ashtaka" && <AshtakavargaPanel scores={result.sarvashtakavarga} />}
+            {activeTab === "ashtaka" && <div className="ashtaka-detail"><AshtakavargaPanel scores={result.sarvashtakavarga} /><div className="detail-section"><h4>Bhinna Ashtakavarga（按行星）</h4><div className="bav-table"><div className="bav-row head"><span>行星</span><span>总分</span>{signShort.map(sign => <span key={sign}>{sign}</span>)}</div>{result.bhinnaAshtakavarga.map(item => <div className="bav-row" key={item.body}><b>{item.body}</b><b>{item.total}</b>{item.points.map((point, index) => <span key={index}>{point}</span>)}</div>)}</div></div></div>}
             {activeTab === "transits" && <div className="transit-panel"><div className="transit-intro"><Globe2 size={22} /><span className="section-tag">LIVE TRANSITS</span><h3>当前过境位置</h3><p>以输入地点的时区显示当前时间对应的恒星黄道位置；不与出生盘混合解释。</p></div><ResultTable items={result.transits.filter(item => item.body !== "Ascendant")} /></div>}
             <div className="engine-foot"><span><span className="status-pulse" /> 已计算</span><span>{result.engine.name}</span><span>{result.engine.ayanamsa}</span><span>{result.input.calendar}</span><span>输入：{result.input.date} {result.input.time}</span><button onClick={downloadPdf} disabled={pdfReport.isPending}><Download size={12} /> {pdfReport.isPending ? "生成 PDF…" : "下载 PDF 报告"}</button><button onClick={() => window.print()}><Printer size={12} /> 打印</button></div>
           </>}

@@ -87,3 +87,32 @@ KeepTogether 修复后，已以 Chennai 校验资料重新生成星盘，准备�
 新版文件 `vedic-web-atlas-report (3).pdf` 已出现在浏览器下载记录中，作为 KeepTogether 修复后的最终候选产物。
 
 最终视觉核验通过：最新版 PDF 仍为 3 页，所有中文内容均清晰可读且无乱码。Vimsottari 标题、完整周期表与“当前子周期”已整体移至第 2 页，不再出现标题或首行孤立在第 1 页末尾的情况；后续跨页的 Shadbala 表格在第 3 页重复表头，页面衔接清晰。
+
+高密度参数增强验证：以 Chennai 校验资料重新生成真实星盘后，工作台出现“详参”入口，并保持既有 Rasi、Navamsa、Dasa、Yoga、Muhurta、Shadbala、Ashtakavarga 与过境标签可用。
+
+“详参”面板已浏览器验证：显示 Sidereal/Lahiri 与岁差值、DMS 坐标、Lunar month、日出日落及昼夜长度；8 项 Jaimini Chara Karaka、9 项特殊 Lagna、5 项太阳虚点和 D1–D60 的 16 项分盘总览均有真实返回值。
+
+完整 Panchanga 面板已显示五支历：Krishna Dwadashi（#27）、Swati（#15，Pada 1，Rahu）、Shobhana（#5）、Kaulava（#53）、Margashirsha 月名以及日出、日落、昼夜长度与各段剩余比例。
+
+增强版 PDF `vedic-web-atlas-report (4).pdf` 视觉检查（第 1–5 页）结果：
+
+- 第 1 页已包含报告总览、Rasi D1 七列表格，以及 Panchanga 的前 6 行。
+- 第 3 页已包含 8 项 Jaimini Chara Karaka、9 项特殊 Lagna、5 项太阳虚点，中文显示正常，无乱码。
+- 第 4–5 页已包含 Vimsottari、Yoga、Muhurta、Shadbala、Sarvashtakavarga 与 8 行 Bhinna Ashtakavarga，表头样式统一，中文正常。
+- 发现一处版式问题：第 2 页仅承接 Panchanga 的最后一行“日出 / 日落”，页面大面积留白，说明 Panchanga 区块需要重新分页控制，避免拆成单行跨页。
+
+分页修复后的 `vedic-web-atlas-report (5).pdf` 已重新检查：
+
+- 报告页数由 12 页收敛为 11 页。
+- 第 1 页保留概览与 Rasi D1 明细，第 2 页完整容纳整个 Panchanga 表、Jaimini Chara Karaka 与全部 9 项特殊 Lagna，不再出现 Panchanga 最后一行孤立跨页。
+- 第 3 页承接 5 项 Solar Upagraha，并继续展示 Vimsottari、Yoga 与 Muhurta；第 4 页展示 Shadbala、Sarvashtakavarga 与 8 行 Bhinna Ashtakavarga。
+- 第 5–8 页已连续展示分盘总览中的 D1、D2、D3、D4、D7、D9、D10、D12、D16、D20 等位置表，中文、英文字段、星宿与 Pada 列均清晰可读，无乱码。
+- 自动化回归方面，`server/vedicEngine.test.ts` 已增加 Panchanga 细项、Karaka、特殊 Lagna、分盘与 BAV 断言；`server/pdfReport.test.ts` 已提高产物体积门槛。`pnpm check`、`pnpm test` 与定向 `pnpm vitest run server/vedicEngine.test.ts server/pdfReport.test.ts` 均通过。
+
+最终 PDF 第 9–11 页视觉核验：第 9 页连续呈现 D-24 与 D-27，D-27 的最后一行自然延至第 10 页；第 10 页完整呈现 D-30、D-40 与 D-45 的起始行；第 11 页承接 D-45 剩余行并完整呈现 D-60。所有跨页位置表均有重复表头，天体、星座、宫位、度数、星宿、Pada 与宿主字段可读，页脚免责声明完整显示。至此 11 页均完成检查。
+
+范围说明最终核验：新版 `vedic-web-atlas-report (6).pdf` 首页在概览表中清晰显示“报告范围”与“当前边界”。前者列出已支持的 Rasi、五支历、Jaimini Karaka、9 项特殊 Lagna、5 项太阳虚点、Sarva/Bhinna Ashtakavarga、D1–D60、Dasa、Yoga、Muhurta、Shadbala；后者说明 Varnada Lagna、Yogi/Avayogi、Maandi/Gulika 等未纳入的原因是流派与计算口径差异，并明确报告不生成个人预测或决策结论。
+
+工作台范围说明可见性验证：刷新页面、重新计算 Chennai 资料并打开“详参”后，标题下方出现高亮的“参数覆盖与当前边界”区块。该区块列出已支持的 Rasi、五支历、Jaimini Karaka、特殊 Lagna、太阳虚点、Sarva/Bhinna Ashtakavarga、D1–D60、Dasa、Yoga、Muhurta、Shadbala，并说明 Varnada Lagna、Yogi/Avayogi、Maandi/Gulika 因流派与计算口径差异暂未在本版呈现。
+
+为保证该说明可被阅读器、辅助技术与页面文本提取稳定访问，已将其由 CSS 伪元素改为详参面板内的真实 JSX `aside` 区块。浏览器最终验证的页面文本已明确提取“参数覆盖与当前边界”、“已支持”与“当前未纳入”两段内容，视觉布局也显示为参数卡片前的高亮说明栏。

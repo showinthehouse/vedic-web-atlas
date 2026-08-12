@@ -14,7 +14,7 @@ import traceback
 with contextlib.redirect_stdout(sys.stderr):
     import swisseph as swe
     from jhora import const, utils
-    from jhora.horoscope.chart import charts
+    from jhora.horoscope.chart import charts, house
     from jhora.horoscope.chart import ashtakavarga
     from jhora.horoscope.chart import strength
     from jhora.horoscope.dhasa.graha import vimsottari
@@ -37,6 +37,14 @@ NAKSHATRAS = [
     "Mula", "Purva Ashadha", "Uttara Ashadha", "Shravana", "Dhanishtha", "Shatabhisha",
     "Purva Bhadrapada", "Uttara Bhadrapada", "Revati",
 ]
+NAKSHATRA_LORDS = ["Ketu", "Venus", "Sun", "Moon", "Mars", "Rahu", "Jupiter", "Saturn", "Mercury"] * 3
+LUNAR_MONTHS = ["Chaitra", "Vaisakha", "Jyeshtha", "Ashadha", "Shravana", "Bhadrapada", "Ashwin", "Kartika", "Margashirsha", "Pausha", "Magha", "Phalguna"]
+TITHI_NAMES = ["Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami", "Shashthi", "Saptami", "Ashtami", "Navami", "Dashami", "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi", "Purnima"]
+YOGA_NAMES = ["Vishkambha", "Priti", "Ayushman", "Saubhagya", "Shobhana", "Atiganda", "Sukarman", "Dhriti", "Shoola", "Ganda", "Vriddhi", "Dhruva", "Vyaghata", "Harshana", "Vajra", "Siddhi", "Vyatipata", "Variyana", "Parigha", "Shiva", "Siddha", "Sadhya", "Shubha", "Shukla", "Brahma", "Indra", "Vaidhriti"]
+KARANA_CYCLE = ["Bava", "Balava", "Kaulava", "Taitila", "Garaja", "Vanija", "Vishti"]
+KARAKA_NAMES = ["Atma Karaka", "Amatya Karaka", "Bhratri Karaka", "Maitri Karaka", "Pitri Karaka", "Putra Karaka", "Jnati Karaka", "Dara Karaka"]
+VARGA_FACTORS = [1, 2, 3, 4, 7, 9, 10, 12, 16, 20, 24, 27, 30, 40, 45, 60]
+BAV_BODIES = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Ascendant"]
 WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 AYANAMSA = {"LAHIRI": "LAHIRI", "RAMAN": "RAMAN", "KP": "KP", "TRUE_PUSHYA": "TRUE_PUSHYA"}
 
@@ -62,6 +70,48 @@ def local_time_string(hour):
     return f"{h:02d}:{m:02d}"
 
 
+def coordinate_dms(value, positive, negative):
+    hemisphere = positive if value >= 0 else negative
+    return f"{decimal_to_dms(abs(value))} {hemisphere}"
+
+
+def interval_fraction_left(start, end, current_hour):
+    start = float(start)
+    end = float(end)
+    current = float(current_hour)
+    if end <= start:
+        end += 24
+    while current < start:
+        current += 24
+    while current > end:
+        current -= 24
+    duration = end - start
+    return round(max(0, min(1, (end - current) / duration)) * 100, 2) if duration else None
+
+
+def nakshatra_details(sign_index, degree):
+    absolute = (float(sign_index) * 30 + float(degree)) % 360
+    star_span = 360 / 27
+    number = int(absolute / star_span) + 1
+    pada = int((absolute % star_span) / (star_span / 4)) + 1
+    return {"number": number, "name": NAKSHATRAS[number - 1], "pada": pada, "lord": NAKSHATRA_LORDS[number - 1]}
+
+
+def position_record(label, key, sign_index, degree, asc_sign_index):
+    sign_index = int(sign_index)
+    degree = float(degree)
+    return {
+        "body": label,
+        "key": str(key),
+        "signIndex": sign_index,
+        "sign": SIGNS[sign_index],
+        "degree": round(degree, 6),
+        "formattedDegree": decimal_to_dms(degree),
+        "house": ((sign_index - int(asc_sign_index)) % 12) + 1,
+        "nakshatra": nakshatra_details(sign_index, degree),
+    }
+
+
 def jd_to_iso(jd):
     year, month, day, hour = utils.jd_to_gregorian(jd)
     return f"{year:04d}-{month:02d}-{day:02d} {local_time_string(hour)}"
@@ -69,43 +119,93 @@ def jd_to_iso(jd):
 
 def chart_items(jd, place, factor):
     raw = charts.divisional_chart(jd, place, divisional_chart_factor=factor)
+    asc_sign = raw[0][1][0]
     items = []
     for body, position in raw:
         sign, degree = position
-        items.append({
-            "body": PLANETS.get(body, str(body)),
-            "key": str(body),
-            "signIndex": int(sign),
-            "sign": SIGNS[int(sign)],
-            "degree": round(float(degree), 6),
-            "formattedDegree": decimal_to_dms(float(degree)),
-        })
+        items.append(position_record(PLANETS.get(body, str(body)), body, sign, degree, asc_sign))
     return items
 
 
 def panchanga(jd, place):
     tithi = drik.tithi(jd, place)
     nakshatra = drik.nakshatra(jd, place)
+    yoga = drik.yogam(jd, place)
+    karana = drik.karana(jd, place)
+    lunar_month, is_adhika, is_nija = drik.lunar_month(jd, place)
     sunrise = drik.sunrise(jd, place)
     sunset = drik.sunset(jd, place)
     weekday = int(drik.vaara(jd, place))
     tithi_num = int(tithi[0])
+    _, _, _, birth_hour = utils.jd_to_gregorian(jd)
+    tithi_name = "Amavasya" if tithi_num == 30 else TITHI_NAMES[(tithi_num - 1) % 15]
+    karana_num = int(karana[0])
+    if karana_num == 1:
+        karana_name = "Kimstughna"
+    elif karana_num >= 57:
+        karana_name = ["Shakuni", "Chatushpada", "Naga", "Kimstughna"][min(karana_num - 57, 3)]
+    else:
+        karana_name = KARANA_CYCLE[(karana_num - 2) % len(KARANA_CYCLE)]
     return {
         "weekday": WEEKDAYS[weekday],
         "tithi": {
             "number": tithi_num,
             "paksha": "Krishna" if tithi_num > 15 else "Shukla",
+            "name": tithi_name,
+            "startTime": local_time_string(float(tithi[1])),
             "endTime": local_time_string(float(tithi[2])),
+            "percentLeft": interval_fraction_left(tithi[1], tithi[2], birth_hour),
         },
         "nakshatra": {
             "number": int(nakshatra[0]),
             "name": NAKSHATRAS[int(nakshatra[0]) - 1],
             "pada": int(nakshatra[1]),
+            "lord": NAKSHATRA_LORDS[int(nakshatra[0]) - 1],
+            "startTime": local_time_string(float(nakshatra[2])),
             "endTime": local_time_string(float(nakshatra[3])),
+            "percentLeft": interval_fraction_left(nakshatra[2], nakshatra[3], birth_hour),
         },
+        "yoga": {"number": int(yoga[0]), "name": YOGA_NAMES[int(yoga[0]) - 1], "startTime": local_time_string(float(yoga[1])), "endTime": local_time_string(float(yoga[2])), "percentLeft": round(float(yoga[3]) * 100, 2)},
+        "karana": {"number": karana_num, "name": karana_name, "startTime": local_time_string(float(karana[1])), "endTime": local_time_string(float(karana[2])), "percentLeft": interval_fraction_left(karana[1], karana[2], birth_hour)},
+        "lunarMonth": {"number": int(lunar_month) + 1, "name": LUNAR_MONTHS[int(lunar_month)], "isAdhika": bool(is_adhika), "isNija": bool(is_nija)},
         "sunrise": sunrise[1],
         "sunset": sunset[1],
+        "dayLength": local_time_string(float(drik.day_length(jd, place))),
+        "nightLength": local_time_string(float(drik.night_length(jd, place))),
     }
+
+
+def chara_karakas(jd, place):
+    raw = charts.rasi_chart(jd, place)
+    order = house.chara_karakas(raw)
+    return [{"karaka": KARAKA_NAMES[index], "planet": PLANETS.get(planet, str(planet))} for index, planet in enumerate(order)]
+
+
+def special_lagnas(jd, place, rasi):
+    asc_sign = next(item["signIndex"] for item in rasi if item["body"] == "Ascendant")
+    calculators = [
+        ("Bhava Lagna", drik.bhava_lagna), ("Hora Lagna", drik.hora_lagna), ("Ghati Lagna", drik.ghati_lagna),
+        ("Vighati Lagna", drik.vighati_lagna), ("Pranapada Lagna", drik.pranapada_lagna), ("Indu Lagna", drik.indu_lagna),
+        ("Bhrigu Bindu", drik.bhrigu_bindhu_lagna), ("Kunda Lagna", drik.kunda_lagna), ("Sree Lagna", drik.sree_lagna),
+    ]
+    values = []
+    for label, calculator in calculators:
+        sign, degree = calculator(jd, place)
+        values.append(position_record(label, label, sign, degree, asc_sign))
+    return values
+
+
+def solar_upagrahas(jd, place, rasi):
+    raw = charts.rasi_chart(jd, place)
+    asc_sign = raw[0][1][0]
+    sun_sign, sun_degree = raw[1][1]
+    sun_longitude = sun_sign * 30 + sun_degree
+    calculators = [("Dhuma", "dhuma"), ("Vyatipaata", "vyatipaata"), ("Parivesha", "parivesha"), ("Indrachaapa", "indrachaapa"), ("Upaketu", "upaketu")]
+    values = []
+    for label, upagraha in calculators:
+        sign, degree = drik.solar_upagraha_longitudes(sun_longitude, upagraha)
+        values.append(position_record(label, label, sign, degree, asc_sign))
+    return values
 
 
 def dasa_periods(jd, place):
@@ -193,6 +293,13 @@ def sarvashtakavarga_scores(jd, place):
     return [{"sign": SIGNS[index], "signIndex": index, "points": int(points)} for index, points in enumerate(sarva)]
 
 
+def bhinna_ashtakavarga_scores(jd, place):
+    rasi_chart = charts.rasi_chart(jd, place)
+    house_to_planets = utils.get_house_planet_list_from_planet_positions(rasi_chart)
+    bav, _, _ = ashtakavarga.get_ashtaka_varga(house_to_planets)
+    return [{"body": BAV_BODIES[index], "points": [int(point) for point in points], "total": int(sum(points))} for index, points in enumerate(bav)]
+
+
 def compute(payload):
     date = payload["date"]
     time = payload["time"]
@@ -221,22 +328,28 @@ def compute(payload):
         selected_chart = chart_items(jd, place, factor)
         rasi = selected_chart if factor == 1 else chart_items(jd, place, 1)
         navamsa = selected_chart if factor == 9 else chart_items(jd, place, 9)
+        divisions = [{"factor": divisional_factor, "label": f"D-{divisional_factor}", "items": (selected_chart if factor == divisional_factor else chart_items(jd, place, divisional_factor))} for divisional_factor in VARGA_FACTORS]
         now = dt.datetime.now() + dt.timedelta(hours=timezone)
         transit_jd = utils.julian_day_number((now.year, now.month, now.day), (now.hour, now.minute, 0))
 
     return {
-        "engine": {"name": "PyJHora + Swiss Ephemeris", "license": "AGPL-3.0", "ayanamsa": ayanamsa},
-        "input": {"date": date, "time": time, "calendar": calendar, "placeName": place_name, "latitude": latitude, "longitude": longitude, "timezone": timezone},
+        "engine": {"name": "PyJHora + Swiss Ephemeris", "license": "AGPL-3.0", "ayanamsa": ayanamsa, "ayanamsaValue": round(float(drik.get_ayanamsa_value(jd)), 6), "zodiac": "Sidereal"},
+        "input": {"date": date, "time": time, "calendar": calendar, "placeName": place_name, "latitude": latitude, "longitude": longitude, "latitudeDms": coordinate_dms(latitude, "N", "S"), "longitudeDms": coordinate_dms(longitude, "E", "W"), "timezone": timezone},
         "selectedChart": {"factor": factor, "label": f"D-{factor}", "items": selected_chart},
         "rasi": rasi,
         "navamsa": navamsa,
+        "divisions": divisions,
         "panchanga": panchanga(jd, place),
+        "charaKarakas": chara_karakas(jd, place),
+        "specialLagnas": special_lagnas(jd, place, rasi),
+        "solarUpagrahas": solar_upagrahas(jd, place, rasi),
         "vimsottari": dasa_periods(jd, place),
         "fineDasa": fine_dasa(jd, place),
         "yogas": yoga_results(rasi),
         "muhurta": muhurta_windows(jd, place),
         "shadbala": shadbala_scores(jd, place),
         "sarvashtakavarga": sarvashtakavarga_scores(jd, place),
+        "bhinnaAshtakavarga": bhinna_ashtakavarga_scores(jd, place),
         "transits": chart_items(transit_jd, place, 1),
     }
 

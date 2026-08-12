@@ -15,7 +15,7 @@ describe("PDF report", () => {
 
     expect(file.filename).toBe("vedic-web-atlas-report.pdf");
     expect(bytes.subarray(0, 4).toString("ascii")).toBe("%PDF");
-    expect(bytes.byteLength).toBeGreaterThan(5_000);
+    expect(bytes.byteLength).toBeGreaterThan(20_000);
     expect(bytes.toString("latin1")).toContain("STSong-Light");
   }, 30_000);
 });
