@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isMissingGenderColumn, withGenderFallback } from "./db";
+import { DatabaseUnavailableError, isMissingGenderColumn, isTransientDatabaseError, toSafeDatabaseError, withGenderFallback } from "./db";
 
 describe("birth profile gender-schema fallback", () => {
   it("recognizes MySQL missing gender column errors so profile reads can retry with legacy fields", () => {
@@ -20,5 +20,20 @@ describe("birth profile gender-schema fallback", () => {
       async () => [{ id: 7, label: "Existing profile" }],
     );
     expect(profiles).toEqual([{ id: 7, label: "Existing profile", gender: "UNSPECIFIED" }]);
+  });
+
+  it("recognizes DNS and connection blips as retryable without classifying schema errors as transient", () => {
+    expect(isTransientDatabaseError(new Error("ERROR 2005 (HY000): Unknown MySQL server host 'gateway' (-3)"))).toBe(true);
+    expect(isTransientDatabaseError(new Error("connect ETIMEDOUT"))).toBe(true);
+    expect(isTransientDatabaseError(new Error("read ECONNRESET"))).toBe(true);
+    expect(isTransientDatabaseError(new Error("Unknown column 'gender' in 'field list'"))).toBe(false);
+  });
+
+  it("converts final transient database failures to a Chinese safe error while retaining domain errors", () => {
+    const safe = toSafeDatabaseError(new Error("connect ETIMEDOUT"));
+    expect(safe).toBeInstanceOf(DatabaseUnavailableError);
+    expect((safe as Error).message).toBe("数据库连接暂时不稳定，请稍后重试。");
+    const domainError = new Error("Duplicate entry");
+    expect(toSafeDatabaseError(domainError)).toBe(domainError);
   });
 });

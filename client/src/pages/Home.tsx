@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { normalizeCalendarDate, normalizeClockTime } from "@/lib/dateInput";
+import { toSafeChineseActionError } from "@/lib/safeError";
 import { AshtakavargaPanel } from "@/components/AshtakavargaPanel";
 import { LocationSearch } from "@/components/LocationSearch";
 import { ProfileShelf, type ProfileChartInput } from "@/components/ProfileShelf";
@@ -236,7 +237,10 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<"chart" | "details" | "panchanga" | "dasa" | "fineDasa" | "yogas" | "muhurta" | "strength" | "ashtaka" | "transits">("chart");
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [reportInput, setReportInput] = useState<ProfileChartInput & { varnadaMethod: 1 | 2 | 3 | 4; includeTraditionalPoints: boolean } | null>(null);
+  const [lastCalculationInput, setLastCalculationInput] = useState<ProfileChartInput & { varnadaMethod: 1 | 2 | 3 | 4; includeTraditionalPoints: boolean } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [compareError, setCompareError] = useState<string | null>(null);
   const [timezoneMeta, setTimezoneMeta] = useState<{ timeZoneId: string; formattedOffset: string; dstApplied: boolean; warning: string | null } | null>(null);
   const [profilesOpen, setProfilesOpen] = useState(false);
   const [comparison, setComparison] = useState<{ left: CalculationResult; right: CalculationResult; labels: [string, string]; compatibility?: CompatibilityResult } | null>(null);
@@ -248,7 +252,7 @@ export default function Home() {
       setActiveTab("chart");
       setFormError(null);
     },
-    onError: error => setFormError(error.message),
+    onError: error => setFormError(toSafeChineseActionError(error, "计算请求未能完成，请检查出生资料后重试。")),
   });
   const compare = trpc.astrology.compare.useMutation();
   const pdfReport = trpc.reports.pdf.useMutation();
@@ -268,7 +272,19 @@ export default function Home() {
       setFormError("请填写有效的经度、纬度和时区偏移量。");
       return;
     }
-    calculate.mutate({ date: normalizedDate, time: normalizedTime, gender, placeName, latitude: lat, longitude: lon, timezone: tz, calendar, ayanamsa, divisionalFactor, varnadaMethod, includeTraditionalPoints });
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180 || tz < -14 || tz > 14) {
+      setFormError("纬度应在 -90 至 90 之间、经度应在 -180 至 180 之间，UTC 偏移应在 -14 至 14 之间。");
+      return;
+    }
+    const input = { date: normalizedDate, time: normalizedTime, gender, placeName, latitude: lat, longitude: lon, timezone: tz, calendar, ayanamsa, divisionalFactor, varnadaMethod, includeTraditionalPoints };
+    setLastCalculationInput(input);
+    calculate.mutate(input);
+  }
+
+  function retryCalculation() {
+    if (!lastCalculationInput || calculate.isPending) return;
+    setFormError(null);
+    calculate.mutate(lastCalculationInput);
   }
 
   function loadChennaiPreset() {
@@ -277,7 +293,8 @@ export default function Home() {
 
   function downloadPdf() {
     if (!result || !reportInput) return;
-    pdfReport.mutate({ input: reportInput, comparison: comparison ? { compatibility: comparison.compatibility } : undefined, options: { language: pdfLanguage, sections: pdfSections as (typeof pdfSectionChoices)[number][0][] } }, { onSuccess: file => { const link = document.createElement("a"); link.href = `data:application/pdf;base64,${file.base64}`; link.download = file.filename; link.click(); } });
+    setPdfError(null);
+    pdfReport.mutate({ input: reportInput, comparison: comparison ? { compatibility: comparison.compatibility } : undefined, options: { language: pdfLanguage, sections: pdfSections as (typeof pdfSectionChoices)[number][0][] } }, { onSuccess: file => { const link = document.createElement("a"); link.href = `data:application/pdf;base64,${file.base64}`; link.download = file.filename; link.click(); }, onError: error => setPdfError(toSafeChineseActionError(error, "PDF 导出未完成，请检查网络连接后重试。")) });
   }
 
   function togglePdfSection(key: string) {
@@ -312,7 +329,7 @@ export default function Home() {
             <div className="field-grid three"><label><span>历法</span><select value={calendar} onChange={event => setCalendar(event.target.value as typeof calendar)}><option value="GREGORIAN">Gregorian</option><option value="JULIAN">Julian</option></select></label><label><span>Ayanamsa</span><select value={ayanamsa} onChange={event => setAyanamsa(event.target.value as typeof ayanamsa)}><option value="LAHIRI">Lahiri</option><option value="RAMAN">Raman</option><option value="KP">KP</option><option value="TRUE_PUSHYA">True Pushya</option></select></label><label><span>目标分盘</span><select value={divisionalFactor} onChange={event => setDivisionalFactor(Number(event.target.value))}>{divisionalChoices.map(factor => <option value={factor} key={factor}>D-{factor}{factor === 1 ? " · Rasi" : factor === 9 ? " · Navamsa" : ""}</option>)}</select></label></div>
             <div className="field-grid two tradition-controls"><label><span>Varnada 方法</span><select value={varnadaMethod} onChange={event => setVarnadaMethod(Number(event.target.value) as 1 | 2 | 3 | 4)}><option value={1}>B. V. Raman</option><option value={2}>Sharma / Santhanam</option><option value={3}>Sanjay Rath</option><option value={4}>Sitaram Jha / R. Pandey</option></select></label><label className="traditional-toggle"><input type="checkbox" checked={includeTraditionalPoints} onChange={event => setIncludeTraditionalPoints(event.target.checked)} /><span>计算 Yogi / Avayogi</span><small>以真实 Sphuta 点返回，不作预测结论。</small></label></div>
             <button type="submit" className="calculate-button" disabled={calculate.isPending}>{calculate.isPending ? <><LoaderCircle size={17} className="spin" /> 正在计算星历…</> : <><Sparkles size={17} /> 生成真实印度占星报告</>}</button>
-            {formError && <div className="form-error"><CircleAlert size={15} />{formError}</div>}
+            {formError && <div className="form-error"><CircleAlert size={15} />{formError}{lastCalculationInput && <button type="button" onClick={retryCalculation} disabled={calculate.isPending}>重试</button>}</div>}
           </form>
           <div className="license-panel"><FileCode2 size={16} /><div><b>AGPL 开源引擎</b><p>包含 <a href="https://github.com/naturalstupid/PyJHora" target="_blank" rel="noreferrer">PyJHora</a> 与 <a href="https://www.astro.com/swisseph/" target="_blank" rel="noreferrer">Swiss Ephemeris</a>；请同时阅读 <a href="https://www.astro.com/swisseph/swephinfo_e.htm" target="_blank" rel="noreferrer">官方许可条款</a>。公开部署时应提供相应源码与许可证说明。</p></div></div>
         </aside>
@@ -361,12 +378,13 @@ export default function Home() {
             {activeTab === "strength" && <div className="strength-panel"><div className="dasa-intro"><span className="section-tag">SHADBALA / SIXFOLD STRENGTH</span><h3>行星六力</h3><p>按 PyJHora 的 Shadbala 模块计算。Rupa 是 Virupa ÷ 60；“达标”表示高于该行星最低所需强度。</p></div><div className="strength-list">{result.shadbala.map(score => <div className="strength-row" key={score.planet}><b>{score.planet}</b><div className="strength-track"><i style={{ width: `${Math.min(score.rupas / 10 * 100, 100)}%` }} /></div><span>{score.rupas.toFixed(2)} Rupa</span><span className={score.isStrong ? "strength-status good" : "strength-status"}>{score.isStrong ? "达标" : "较弱"}</span></div>)}</div></div>}
             {activeTab === "ashtaka" && <div className="ashtaka-detail"><AshtakavargaPanel scores={result.sarvashtakavarga} /><div className="detail-section"><h4>Bhinna Ashtakavarga（按行星）</h4><div className="bav-table"><div className="bav-row head"><span>行星</span><span>总分</span>{signShort.map(sign => <span key={sign}>{sign}</span>)}</div>{result.bhinnaAshtakavarga.map(item => <div className="bav-row" key={item.body}><b>{item.body}</b><b>{item.total}</b>{item.points.map((point, index) => <span key={index}>{point}</span>)}</div>)}</div></div></div>}
             {activeTab === "transits" && <div className="transit-panel"><div className="transit-intro"><Globe2 size={22} /><span className="section-tag">LIVE TRANSITS</span><h3>当前过境位置</h3><p>以输入地点的时区显示当前时间对应的恒星黄道位置；不与出生盘混合解释。</p></div><ResultTable items={result.transits.filter(item => item.body !== "Ascendant")} /></div>}
-            <div className="engine-foot"><span><span className="status-pulse" /> 已计算</span><span>{result.engine.name}</span><span>{result.engine.ayanamsa}</span><span>{result.input.calendar}</span><span>输入：{result.input.date} {result.input.time}</span><details className="pdf-options"><summary>PDF 设置</summary><div className="pdf-options-popover"><label>报告语言<select value={pdfLanguage} onChange={event => setPdfLanguage(event.target.value as typeof pdfLanguage)}><option value="zh-CN">中文研究模板</option><option value="en">English research template</option></select></label><div><b>导出章节</b>{pdfSectionChoices.map(([key, label]) => <label key={key}><input type="checkbox" checked={pdfSections.includes(key)} onChange={() => togglePdfSection(key)} />{label}</label>)}</div></div></details><button onClick={downloadPdf} disabled={pdfReport.isPending}><Download size={12} /> {pdfReport.isPending ? "生成 PDF…" : "下载 PDF 报告"}</button><button onClick={() => window.print()}><Printer size={12} /> 打印</button></div>
+            <div className="engine-foot"><span><span className="status-pulse" /> 已计算</span><span>{result.engine.name}</span><span>{result.engine.ayanamsa}</span><span>{result.input.calendar}</span><span>输入：{result.input.date} {result.input.time}</span><details className="pdf-options"><summary>PDF 设置</summary><div className="pdf-options-popover"><label>报告语言<select value={pdfLanguage} onChange={event => setPdfLanguage(event.target.value as typeof pdfLanguage)}><option value="zh-CN">中文研究模板</option><option value="en">English research template</option></select></label><div><b>导出章节</b>{pdfSectionChoices.map(([key, label]) => <label key={key}><input type="checkbox" checked={pdfSections.includes(key)} onChange={() => togglePdfSection(key)} />{label}</label>)}</div></div></details><button onClick={downloadPdf} disabled={pdfReport.isPending}><Download size={12} /> {pdfReport.isPending ? "生成 PDF…" : "下载 PDF 报告"}</button><button onClick={() => window.print()}><Printer size={12} /> 打印</button>{pdfError && <span className="inline-action-error" role="alert">{pdfError}<button onClick={downloadPdf} disabled={pdfReport.isPending}>重试</button></span>}</div>
           </>}
           {comparison && <ComparisonPanel {...comparison} />}
         </section>
       </main>
-      <ProfileShelf open={profilesOpen} onClose={() => setProfilesOpen(false)} current={currentProfile} onLoad={loadProfile} onCompare={(left, right, labels) => compare.mutate({ left, right }, { onSuccess: data => setComparison({ ...(data as { left: CalculationResult; right: CalculationResult; compatibility: { score: number; maximum: number; method: string; components: { name: string; score: number }[] } }), labels }) })} />
+      <ProfileShelf open={profilesOpen} onClose={() => setProfilesOpen(false)} current={currentProfile} onLoad={loadProfile} onCompare={(left, right, labels) => { setCompareError(null); compare.mutate({ left, right }, { onSuccess: data => setComparison({ ...(data as { left: CalculationResult; right: CalculationResult; compatibility: { score: number; maximum: number; method: string; components: { name: string; score: number; maximum?: number }[] } }), labels }), onError: error => setCompareError(toSafeChineseActionError(error, "合盘计算未完成，请检查两份出生资料后重试。")) }); }} />
+      {compareError && <div className="floating-action-error" role="alert">合盘计算未完成：{compareError}<button onClick={() => setCompareError(null)} aria-label="关闭错误提示">×</button></div>}
       <footer className="app-footer"><span>Vedic Web Atlas</span><span>Calculation engine: PyJHora + Swiss Ephemeris</span><div><a href="https://github.com/naturalstupid/PyJHora" target="_blank" rel="noreferrer">PyJHora ↗</a><a href="https://www.astro.com/swisseph/swephinfo_e.htm" target="_blank" rel="noreferrer">Swiss Ephemeris License ↗</a></div></footer>
     </div>
   );

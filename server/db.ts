@@ -51,6 +51,44 @@ export async function withGenderFallback<T extends object>(primary: () => Promis
   }
 }
 
+export function isTransientDatabaseError(error: unknown) {
+  const message = error instanceof Error ? `${error.message}\n${String((error as Error & { cause?: unknown }).cause ?? "")}` : String(error);
+  return /ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|ENOTFOUND|unknown MySQL server host|DNS|network/i.test(message);
+}
+
+export class DatabaseUnavailableError extends Error {
+  constructor() {
+    super("数据库连接暂时不稳定，请稍后重试。");
+    this.name = "DatabaseUnavailableError";
+  }
+}
+
+export function toSafeDatabaseError(error: unknown) {
+  return isTransientDatabaseError(error) ? new DatabaseUnavailableError() : error;
+}
+
+export async function withDatabaseRetry<T>(operation: (db: NonNullable<Awaited<ReturnType<typeof getDb>>>) => Promise<T>, attempts = 2): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const db = await getDb();
+    if (!db) throw new DatabaseUnavailableError();
+    try {
+      return await operation(db);
+    } catch (error) {
+      lastError = error;
+      if (!isTransientDatabaseError(error)) throw error;
+      if (attempt === attempts - 1) {
+        console.error("[Database] transient query failed after retry", error);
+        throw toSafeDatabaseError(error);
+      }
+      console.warn("[Database] transient query failure; retrying once", { attempt: attempt + 1 });
+      _db = null;
+      await new Promise(resolve => setTimeout(resolve, 180));
+    }
+  }
+  throw toSafeDatabaseError(lastError) instanceof Error ? toSafeDatabaseError(lastError) : new DatabaseUnavailableError();
+}
+
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
@@ -67,12 +105,6 @@ export async function getDb() {
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) {
     throw new Error("User openId is required for upsert");
-  }
-
-  const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
-    return;
   }
 
   try {
@@ -114,9 +146,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
+    await withDatabaseRetry(db => db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet }));
   } catch (error) {
     console.error("[Database] Failed to upsert user:", error);
     throw error;
@@ -124,79 +154,60 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 }
 
 export async function getUserByOpenId(openId: string) {
-  const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
-    return undefined;
-  }
-
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
+  const result = await withDatabaseRetry(db => db.select().from(users).where(eq(users.openId, openId)).limit(1));
   return result.length > 0 ? result[0] : undefined;
 }
 
 export async function getUserById(id: number) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  const result = await withDatabaseRetry(db => db.select().from(users).where(eq(users.id, id)).limit(1));
   return result[0];
 }
 
 export async function getUserByUsername(username: string) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+  const result = await withDatabaseRetry(db => db.select().from(users).where(eq(users.username, username)).limit(1));
   return result[0];
 }
 
 export async function createLocalUser(username: string, passwordHash: string) {
-  const db = await getDb();
-  if (!db) throw new Error("数据库暂时不可用，请稍后再试。");
-  await db.insert(users).values({ openId: `local:${username}`, username, passwordHash, name: username, loginMethod: "password", lastSignedIn: new Date() });
+  await withDatabaseRetry(db => db.insert(users).values({ openId: `local:${username}`, username, passwordHash, name: username, loginMethod: "password", lastSignedIn: new Date() }));
   return getUserByUsername(username);
 }
 
 export async function touchLocalUser(id: number) {
-  const db = await getDb();
-  if (!db) return;
-  await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, id));
+  await withDatabaseRetry(db => db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, id)));
 }
 
 export async function listBirthProfiles(userId: number) {
-  const db = await getDb();
-  if (!db) return [];
-  return withGenderFallback(
+  return withDatabaseRetry(db => withGenderFallback(
     () => db.select().from(birthProfiles).where(eq(birthProfiles.userId, userId)).orderBy(desc(birthProfiles.updatedAt)),
     () => db.select(legacyBirthProfileFields).from(birthProfiles).where(eq(birthProfiles.userId, userId)).orderBy(desc(birthProfiles.updatedAt)),
-  );
+  ));
 }
 
 export async function createBirthProfile(values: InsertBirthProfile) {
-  const db = await getDb();
-  if (!db) throw new Error("Database is not available");
-  try {
-    await db.insert(birthProfiles).values(values);
-  } catch (error) {
-    if (!isMissingGenderColumn(error)) throw error;
-    const { gender: _gender, ...legacyValues } = values;
-    await db.insert(birthProfiles).values(legacyValues);
-  }
+  await withDatabaseRetry(async db => {
+    try {
+      await db.insert(birthProfiles).values(values);
+    } catch (error) {
+      if (!isMissingGenderColumn(error)) throw error;
+      const { gender: _gender, ...legacyValues } = values;
+      await db.insert(birthProfiles).values(legacyValues);
+    }
+  });
 }
 
 export async function updateBirthProfile(userId: number, profileId: number, values: Partial<InsertBirthProfile>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database is not available");
-  try {
-    await db.update(birthProfiles).set(values).where(and(eq(birthProfiles.id, profileId), eq(birthProfiles.userId, userId)));
-  } catch (error) {
-    if (!isMissingGenderColumn(error)) throw error;
-    const { gender: _gender, ...legacyValues } = values;
-    await db.update(birthProfiles).set(legacyValues).where(and(eq(birthProfiles.id, profileId), eq(birthProfiles.userId, userId)));
-  }
+  await withDatabaseRetry(async db => {
+    try {
+      await db.update(birthProfiles).set(values).where(and(eq(birthProfiles.id, profileId), eq(birthProfiles.userId, userId)));
+    } catch (error) {
+      if (!isMissingGenderColumn(error)) throw error;
+      const { gender: _gender, ...legacyValues } = values;
+      await db.update(birthProfiles).set(legacyValues).where(and(eq(birthProfiles.id, profileId), eq(birthProfiles.userId, userId)));
+    }
+  });
 }
 
 export async function deleteBirthProfile(userId: number, profileId: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database is not available");
-  await db.delete(birthProfiles).where(and(eq(birthProfiles.id, profileId), eq(birthProfiles.userId, userId)));
+  await withDatabaseRetry(db => db.delete(birthProfiles).where(and(eq(birthProfiles.id, profileId), eq(birthProfiles.userId, userId))));
 }

@@ -53,4 +53,12 @@ describe("profiles.list gender contract", () => {
     expect(result[0]).toMatchObject({ id: 8, userId: 1, gender: "UNSPECIFIED" });
     expect(db.listBirthProfiles).toHaveBeenCalledWith(1);
   });
+
+  it("passes the safe Chinese database-unavailable message through the protected list route", async () => {
+    vi.spyOn(db, "listBirthProfiles").mockRejectedValue(new db.DatabaseUnavailableError());
+
+    await expect(appRouter.createCaller(authenticatedContext()).profiles.list())
+      .rejects.toThrow("数据库连接暂时不稳定，请稍后重试。");
+    expect(db.listBirthProfiles).toHaveBeenCalledWith(1);
+  });
 });
