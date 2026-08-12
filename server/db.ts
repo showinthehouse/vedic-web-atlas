@@ -25,8 +25,20 @@ const legacyBirthProfileFields = {
 };
 
 export function isMissingGenderColumn(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  return /unknown column.*gender|column.*gender.*doesn't exist/i.test(message);
+  const messages: string[] = [];
+  let current: unknown = error;
+  for (let depth = 0; current && depth < 4; depth += 1) {
+    if (current instanceof Error) {
+      messages.push(current.message);
+      current = (current as Error & { cause?: unknown }).cause;
+      continue;
+    }
+    messages.push(String(current));
+    break;
+  }
+  const joined = messages.join("\n");
+  return /unknown column.*gender|column.*gender.*doesn't exist/i.test(joined)
+    || (/failed query:/i.test(joined) && /birth_profiles/i.test(joined) && /gender/i.test(joined));
 }
 
 export async function withGenderFallback<T extends object>(primary: () => Promise<T[]>, legacy: () => Promise<Omit<T, "gender">[]>): Promise<T[]> {
