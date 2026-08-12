@@ -150,3 +150,5 @@ KeepTogether 修复后，已以 Chennai 校验资料重新生成星盘，准备�
 新增 `server/db.genderFallback.test.ts` 覆盖原生缺列错误、Drizzle 包装错误、嵌套 cause、无关错误不被吞没，以及 legacy 选择器返回数据会补齐 `UNSPECIFIED` 的路径。回归结果为 `pnpm test` 共 9 个测试文件、17 个用例通过，生产构建通过。托管数据库在迁移执行阶段仍间歇性发生 DNS / ETIMEDOUT，因此保留 `drizzle/0002_mysterious_bastion.sql`，待连接稳定后再实际添加列；在此之前现有档案读取、创建和更新不会因为缺少该列而崩溃。
 
 随后在 DNS 恢复窗口中，`ALTER TABLE birth_profiles ADD gender enum('FEMALE','MALE','UNSPECIFIED') DEFAULT 'UNSPECIFIED' NOT NULL` 已由托管数据库成功执行。服务随即重启以清理旧连接状态；后续独立验证查询再次受 DNS 波动影响未能完成，但迁移执行返回成功。保留 schema 回退逻辑作为短暂网络与旧部署版本的兼容保护。
+
+为补齐认证边界的自动化验证，新增 `server/profiles.gender.test.ts`。测试以真实 `appRouter.createCaller` 和模拟的已登录 `TrpcContext` 调用 `profiles.list`，验证路由以当前用户 ID 查询并向调用方返回包含 `gender: "UNSPECIFIED"` 的档案对象。该测试与缺列回退测试共同覆盖了无迁移旧 schema、迁移后 schema 和认证路由契约；最终 `pnpm test` 为 10 个测试文件、18 个用例全部通过，且生产构建成功。
