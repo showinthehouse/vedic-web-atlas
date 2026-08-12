@@ -1,0 +1,15 @@
+- [x] 明确首版真实计算范围与验收基准（Lahiri 默认值、D-1/D-9、Chennai 校验样例）
+- [x] 确定许可证策略：采用 AGPL 开源路径，使用 PyJHora 与 Swiss Ephemeris，并保留许可证和来源说明
+- [x] 在应用内补充 AGPL、Swiss Ephemeris 与 PyJHora 的署名、许可证入口和源码获取说明
+- [x] 升级项目为支持后端、数据库与安全凭据的全栈架构
+- [x] 实现出生资料、地点、时区与历法输入的真实计算接口
+- [x] 实现 Rasi、Navamsa、行星位置、Panchanga 与基础 Dasa
+- [x] 实现分盘、过境和高级分析模块的界面与参数选择（Shadbala、Sarvashtakavarga）
+- [x] 建立黄金测试集并与 PyJHora 参考样例进行结果核验
+- [x] 完成桌面与移动端测试、保存稳定版本并交付说明
+- [x] 新增 Gregorian / Julian 历法选择，并将该参数接入真实计算接口
+- [x] 在应用内添加 Swiss Ephemeris 的许可证与来源入口链接
+- [x] 建立覆盖多城市、时区与分盘的回归黄金测试集
+- [x] 在 UI 中补充 Swiss Ephemeris 官方许可条款入口并验证可见性
+- [x] 编写最终使用与开源合规说明文档
+- [ ] 保存包含全部改造的最终稳定检查点

@@ -1,175 +1,180 @@
-// Observatory Ledger style: asymmetric editorial canvas, precise interactions, ivory paper, ink navy, solar saffron.
 import { useMemo, useState } from "react";
 import {
-  ArrowDownRight,
-  ArrowUpRight,
-  BookOpen,
   CalendarDays,
-  Check,
-  ChevronRight,
-  CircleHelp,
+  CheckCircle2,
+  ChevronDown,
+  CircleAlert,
+  Clock3,
   Compass,
-  Database,
-  ExternalLink,
-  Gauge,
-  GitBranch,
-  Layers3,
-  Menu,
+  Copy,
+  FileCode2,
+  Globe2,
+  LoaderCircle,
+  MapPin,
   Orbit,
-  Play,
-  Scale,
-  ShieldAlert,
+  RotateCcw,
   Sparkles,
-  Timer,
-  X,
+  Sun,
 } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { AshtakavargaPanel } from "@/components/AshtakavargaPanel";
 
-const heroImage = "/manus-storage/vedic-web-atlas-hero_91921752.jpg";
-const orbitImage = "/manus-storage/vedic-web-atlas-orbit_6125be70.jpg";
-const paperImage = "/manus-storage/vedic-web-atlas-paper_10d02648.jpg";
-const markImage = "/manus-storage/vedic-web-atlas-mark_8cea50c4.png";
+type ChartItem = {
+  body: string;
+  key: string;
+  signIndex: number;
+  sign: string;
+  degree: number;
+  formattedDegree: string;
+};
 
-const features = [
-  { label: "ENGINE", title: "精确星历计算", detail: "把行星位置、日出日落、时区与历法放在同一套可验证的计算链路里。", icon: Orbit, tone: "gold" },
-  { label: "METHOD", title: "23 类分盘体系", detail: "从 Rasi / Navamsa 到自定义 D-N，保留专业用户需要的参数空间。", icon: Layers3, tone: "navy" },
-  { label: "RESEARCH", title: "Dasa 与过境", detail: "将时间周期、评分和事件搜索组织成可比较、可保存的分析工作台。", icon: Gauge, tone: "clay" },
-];
+type CalculationResult = {
+  engine: { name: string; license: string; ayanamsa: string };
+  input: { date: string; time: string; calendar: string; placeName: string; latitude: number; longitude: number; timezone: number };
+  selectedChart: { factor: number; label: string; items: ChartItem[] };
+  rasi: ChartItem[];
+  navamsa: ChartItem[];
+  panchanga: { weekday: string; tithi: { number: number; paksha: string; endTime: string }; nakshatra: { number: number; name: string; pada: number; endTime: string }; sunrise: string; sunset: string };
+  vimsottari: { lord: string; start: string; end: string; years: number }[];
+  shadbala: { planet: string; virupas: number; rupas: number; isStrong: boolean }[];
+  sarvashtakavarga: { sign: string; signIndex: number; points: number }[];
+  transits: ChartItem[];
+};
 
-const phases = [
-  { n: "01", title: "基础排盘", copy: "出生资料、地点与时区、Rasi / Navamsa、Panchanga、基础报告。", status: "现在" },
-  { n: "02", title: "专业分析", copy: "分盘、宫位制、Ayanamsa、Shadbala、Ashtakavarga、Vimsottari Dasa。", status: "下一步" },
-  { n: "03", title: "研究工作台", copy: "自定义 D-N、KP、Chakra、Mundane、批量搜索与参数实验。", status: "远景" },
-];
+const signShort = ["Ar", "Ta", "Ge", "Ca", "Le", "Vi", "Li", "Sc", "Sg", "Cp", "Aq", "Pi"];
+const divisionalChoices = [1, 2, 3, 4, 7, 9, 10, 12, 16, 20, 24, 27, 30, 40, 45, 60];
 
-const architecture = [
-  { label: "01", title: "输入层", copy: "日期 · 时间 · 地点 · 时区", icon: Compass },
-  { label: "02", title: "计算层", copy: "Swiss Ephemeris · 规则引擎", icon: Database },
-  { label: "03", title: "呈现层", copy: "图表 · 报告 · 可比分析", icon: GitBranch },
-];
-
-function smoothTo(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function AstroChart({ selectedHouse, onSelect }: { selectedHouse: number; onSelect: (house: number) => void }) {
-  const cx = 180;
-  const cy = 180;
-  const points = Array.from({ length: 12 }, (_, i) => {
-    const angle = ((i * 30 - 15) * Math.PI) / 180;
-    return { x: cx + 142 * Math.cos(angle), y: cy + 142 * Math.sin(angle) };
-  });
+function NorthIndianChart({ items, label }: { items: ChartItem[]; label: string }) {
+  const signBodies = useMemo(() => {
+    const map = new Map<number, ChartItem[]>();
+    items.forEach(item => map.set(item.signIndex, [...(map.get(item.signIndex) ?? []), item]));
+    return map;
+  }, [items]);
+  const positions = [
+    [180, 36], [272, 65], [324, 126], [315, 225], [268, 297], [180, 325],
+    [92, 297], [45, 225], [36, 126], [90, 65], [132, 116], [228, 116],
+  ];
   return (
-    <div className="chart-specimen" aria-label="交互式星盘预览">
+    <div className="north-chart" aria-label={`${label} 北印度星盘`}>
       <svg viewBox="0 0 360 360" role="img">
-        <circle cx="180" cy="180" r="145" className="chart-ring outer" />
-        <circle cx="180" cy="180" r="108" className="chart-ring inner" />
-        <circle cx="180" cy="180" r="52" className="chart-core" />
-        {Array.from({ length: 12 }, (_, i) => {
-          const angle = ((i * 30 - 15) * Math.PI) / 180;
-          const x = cx + 108 * Math.cos(angle);
-          const y = cy + 108 * Math.sin(angle);
-          const x2 = cx + 145 * Math.cos(angle);
-          const y2 = cy + 145 * Math.sin(angle);
-          return <line key={i} x1={x} y1={y} x2={x2} y2={y2} className={`chart-line ${selectedHouse === i + 1 ? "selected" : ""}`} />;
+        <rect x="18" y="18" width="324" height="324" className="chart-outline" />
+        <path d="M18 18 L342 342 M342 18 L18 342 M180 18 L342 180 L180 342 L18 180 Z" className="chart-grid" />
+        <path d="M18 180 L180 18 L342 180 L180 342 Z" className="chart-grid faint" />
+        <circle cx="180" cy="180" r="28" className="chart-center" />
+        <text x="180" y="177" textAnchor="middle" className="chart-center-label">{label}</text>
+        <text x="180" y="193" textAnchor="middle" className="chart-center-sub">SIDEREAL</text>
+        {positions.map(([x, y], index) => {
+          const contents = signBodies.get(index) ?? [];
+          return (
+            <g key={index}>
+              <text x={x} y={y - 11} textAnchor="middle" className="chart-sign">{signShort[index]}</text>
+              <text x={x} y={y + 4} textAnchor="middle" className="chart-planet">{contents.map(item => item.body === "Ascendant" ? "As" : item.body.slice(0, 2)).join(" · ")}</text>
+              <text x={x} y={y + 18} textAnchor="middle" className="chart-degree">{contents.filter(item => item.body === "Ascendant").map(item => item.formattedDegree).join("")}</text>
+            </g>
+          );
         })}
-        {points.map((p, i) => (
-          <g key={i} onClick={() => onSelect(i + 1)} className="chart-house" role="button" tabIndex={0} aria-label={`选择第 ${i + 1} 宫`}>
-            <circle cx={p.x} cy={p.y} r="16" className={selectedHouse === i + 1 ? "house-dot active" : "house-dot"} />
-            <text x={p.x} y={p.y + 4} textAnchor="middle" className="house-number">{i + 1}</text>
-          </g>
-        ))}
-        <text x="180" y="174" textAnchor="middle" className="chart-sun">☉</text>
-        <text x="180" y="198" textAnchor="middle" className="chart-caption">RASI / D1</text>
       </svg>
     </div>
   );
 }
 
+function ResultTable({ items }: { items: ChartItem[] }) {
+  return (
+    <div className="position-table">
+      <div className="position-head"><span>天体</span><span>星座</span><span>位置</span></div>
+      {items.map(item => (
+        <div className="position-row" key={item.key}>
+          <span>{item.body}</span><span>{item.sign}</span><span>{item.formattedDegree}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Home() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [selectedHouse, setSelectedHouse] = useState(1);
-  const [activeMode, setActiveMode] = useState("Rasi / D1");
-  const [birthDate, setBirthDate] = useState("1992-11-08");
-  const [birthTime, setBirthTime] = useState("06:42");
-  const [place, setPlace] = useState("Chennai, IN");
-  const [submitted, setSubmitted] = useState(false);
+  const [date, setDate] = useState("1996-12-07");
+  const [time, setTime] = useState("10:34");
+  const [placeName, setPlaceName] = useState("Chennai, India");
+  const [latitude, setLatitude] = useState("13.0878");
+  const [longitude, setLongitude] = useState("80.2785");
+  const [timezone, setTimezone] = useState("5.5");
+  const [calendar, setCalendar] = useState<"GREGORIAN" | "JULIAN">("GREGORIAN");
+  const [ayanamsa, setAyanamsa] = useState<"LAHIRI" | "RAMAN" | "KP" | "TRUE_PUSHYA">("LAHIRI");
+  const [divisionalFactor, setDivisionalFactor] = useState(1);
+  const [activeTab, setActiveTab] = useState<"chart" | "panchanga" | "dasa" | "strength" | "ashtaka" | "transits">("chart");
+  const [result, setResult] = useState<CalculationResult | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const houseInsight = useMemo(() => {
-    const insights = ["自我与身体：上升点是所有后续分盘的入口。", "资源与价值：观察第二宫与其宫主的关系。", "沟通与学习：第三宫连接技能、手足与短途移动。", "家庭与根基：第四宫显示内在稳定感与居所。", "创造与子女：第五宫是表达、教育与推演的场域。", "服务与修复：第六宫连接日常、健康与竞争。", "关系与契约：第七宫让盘面进入对照关系。", "共享资源：第八宫提示深层转化与共同资产。", "信念与远行：第九宫连接老师、传统与长途。", "事业与声望：第十宫呈现行动如何被世界看见。", "社群与收益：第十一宫观察愿望、网络与成果。", "撤退与释放：第十二宫指向梦、远方与隐退。"];
-    return insights[selectedHouse - 1];
-  }, [selectedHouse]);
+  const calculate = trpc.astrology.calculate.useMutation({
+    onSuccess: data => {
+      setResult(data as CalculationResult);
+      setActiveTab("chart");
+      setFormError(null);
+    },
+    onError: error => setFormError(error.message),
+  });
 
-  function runDemo(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 2600);
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    const lat = Number(latitude);
+    const lon = Number(longitude);
+    const tz = Number(timezone);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(tz)) {
+      setFormError("请填写有效的经度、纬度和时区偏移量。");
+      return;
+    }
+    calculate.mutate({ date, time, placeName, latitude: lat, longitude: lon, timezone: tz, calendar, ayanamsa, divisionalFactor });
   }
 
+  function loadChennaiPreset() {
+    setPlaceName("Chennai, India"); setLatitude("13.0878"); setLongitude("80.2785"); setTimezone("5.5");
+  }
+
+  const displayChart = result?.selectedChart.factor === 1 ? result.rasi : result?.selectedChart.items;
+  const displayLabel = result ? (result.selectedChart.factor === 1 ? "RASI / D1" : result.selectedChart.label) : "RASI / D1";
+
   return (
-    <div className="site-shell">
-      <div className="grain" />
-      <header className="topbar">
-        <a className="brand" href="#top" aria-label="Vedic Web Atlas 首页">
-          <img src={markImage} alt="" />
-          <span><b>Vedic</b> Web Atlas</span>
-        </a>
-        <nav className={menuOpen ? "nav-links open" : "nav-links"}>
-          <a href="#thesis" onClick={() => setMenuOpen(false)}>判断</a>
-          <a href="#engine" onClick={() => setMenuOpen(false)}>引擎</a>
-          <a href="#roadmap" onClick={() => setMenuOpen(false)}>路线</a>
-          <button className="nav-cta" onClick={() => { smoothTo("workspace"); setMenuOpen(false); }}>试用工作台 <ArrowUpRight size={15} /></button>
-        </nav>
-        <button className="menu-toggle" aria-label="打开菜单" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button>
+    <div className="astro-app">
+      <header className="app-header">
+        <a className="app-brand" href="#top"><span className="brand-orbit"><Orbit size={19} /></span><span><b>Vedic</b> Web Atlas</span></a>
+        <div className="engine-status"><span className="status-pulse" /> PYJHORA + SWISS EPHEMERIS <span className="status-divider" /> AGPL-3.0</div>
       </header>
 
-      <main id="top">
-        <section className="hero-section">
-          <div className="hero-copy">
-            <div className="eyebrow"><span className="eyebrow-dot" /> FIELD NOTE  /  2026.08</div>
-            <h1>把星盘，<em>带到</em><br /><span>浏览器里。</span></h1>
-            <p className="hero-lede">一份关于 Jagannatha Hora 的可行性研究，正在变成一个面向占星师的开放式研究工作台。</p>
-            <div className="hero-actions">
-              <button className="button button-primary" onClick={() => smoothTo("workspace")}>打开排盘实验 <ArrowDownRight size={17} /></button>
-              <button className="text-link" onClick={() => smoothTo("thesis")}>先看研究判断 <ChevronRight size={16} /></button>
-            </div>
-            <div className="hero-meta"><span>RESEARCH PROTOTYPE</span><span className="meta-line" /><span>NO LOGIN REQUIRED</span></div>
-          </div>
-          <div className="hero-art" style={{ backgroundImage: `url(${heroImage})` }}>
-            <div className="hero-art-caption"><span>01</span><span>AN INSTRUMENT<br />FOR SERIOUS STUDY</span></div>
-            <div className="orbit-stamp"><Orbit size={15} /><span>JH / WEB</span></div>
-          </div>
+      <main id="top" className="app-main">
+        <aside className="input-sidebar">
+          <div className="sidebar-heading"><span className="section-tag">INPUT / 01</span><h1>出生资料<br /><em>与计算参数</em></h1><p>所有结果均由服务端 PyJHora 与 Swiss Ephemeris 计算，而非演示数据。</p></div>
+          <form onSubmit={submit} className="chart-form">
+            <div className="field-grid two"><label><span>出生日期</span><input type="date" value={date} onChange={event => setDate(event.target.value)} required /></label><label><span>当地时间</span><input type="time" value={time} onChange={event => setTime(event.target.value)} required /></label></div>
+            <label><span>出生地点 / 事件地点</span><input value={placeName} onChange={event => setPlaceName(event.target.value)} placeholder="例如 Chennai, India" required /></label>
+            <button type="button" onClick={loadChennaiPreset} className="preset-button"><MapPin size={13} /> 使用 Chennai 校验样例</button>
+            <div className="field-grid three"><label><span>纬度</span><input inputMode="decimal" value={latitude} onChange={event => setLatitude(event.target.value)} /></label><label><span>经度</span><input inputMode="decimal" value={longitude} onChange={event => setLongitude(event.target.value)} /></label><label><span>UTC</span><input inputMode="decimal" value={timezone} onChange={event => setTimezone(event.target.value)} /></label></div>
+            <div className="field-grid three"><label><span>历法</span><select value={calendar} onChange={event => setCalendar(event.target.value as typeof calendar)}><option value="GREGORIAN">Gregorian</option><option value="JULIAN">Julian</option></select></label><label><span>Ayanamsa</span><select value={ayanamsa} onChange={event => setAyanamsa(event.target.value as typeof ayanamsa)}><option value="LAHIRI">Lahiri</option><option value="RAMAN">Raman</option><option value="KP">KP</option><option value="TRUE_PUSHYA">True Pushya</option></select></label><label><span>目标分盘</span><select value={divisionalFactor} onChange={event => setDivisionalFactor(Number(event.target.value))}>{divisionalChoices.map(factor => <option value={factor} key={factor}>D-{factor}{factor === 1 ? " · Rasi" : factor === 9 ? " · Navamsa" : ""}</option>)}</select></label></div>
+            <button type="submit" className="calculate-button" disabled={calculate.isPending}>{calculate.isPending ? <><LoaderCircle size={17} className="spin" /> 正在计算星历…</> : <><Sparkles size={17} /> 生成真实印度占星报告</>}</button>
+            {formError && <div className="form-error"><CircleAlert size={15} />{formError}</div>}
+          </form>
+          <div className="license-panel"><FileCode2 size={16} /><div><b>AGPL 开源引擎</b><p>包含 <a href="https://github.com/naturalstupid/PyJHora" target="_blank" rel="noreferrer">PyJHora</a> 与 <a href="https://www.astro.com/swisseph/" target="_blank" rel="noreferrer">Swiss Ephemeris</a>；请同时阅读 <a href="https://www.astro.com/swisseph/swephinfo_e.htm" target="_blank" rel="noreferrer">官方许可条款</a>。公开部署时应提供相应源码与许可证说明。</p></div></div>
+        </aside>
+
+        <section className="results-canvas">
+          <div className="canvas-topline"><div><span className="section-tag">CALCULATION / 02</span><h2>{result ? "你的计算结果" : "准备开始一次计算"}</h2></div>{result && <div className="result-context"><MapPin size={14} /><span>{result.input.placeName}</span><span>·</span><span>{result.input.latitude.toFixed(4)}, {result.input.longitude.toFixed(4)}</span></div>}</div>
+
+          {!result && !calculate.isPending && <div className="empty-state"><div className="empty-orbit"><Orbit size={74} /></div><h3>输入出生资料，<br />打开第一张真实星盘。</h3><p>此应用使用真实的星历与吠陀占星规则计算 Rasi、Navamsa、Panchanga、Vimsottari Dasa 与实时过境。</p><div className="empty-points"><span><CheckCircle2 size={14} /> 真实星历</span><span><CheckCircle2 size={14} /> 可选分盘</span><span><CheckCircle2 size={14} /> 参数透明</span></div></div>}
+
+          {calculate.isPending && <div className="loading-state"><LoaderCircle size={42} className="spin" /><p>正在让星历、地点与分盘规则对齐…</p></div>}
+
+          {result && <>
+            <div className="result-tabs" role="tablist"><button className={activeTab === "chart" ? "active" : ""} onClick={() => setActiveTab("chart")}><Orbit size={15} /> 星盘</button><button className={activeTab === "panchanga" ? "active" : ""} onClick={() => setActiveTab("panchanga")}><CalendarDays size={15} /> Panchanga</button><button className={activeTab === "dasa" ? "active" : ""} onClick={() => setActiveTab("dasa")}><Clock3 size={15} /> Vimsottari Dasa</button><button className={activeTab === "strength" ? "active" : ""} onClick={() => setActiveTab("strength")}><Compass size={15} /> Shadbala</button><button className={activeTab === "ashtaka" ? "active" : ""} onClick={() => setActiveTab("ashtaka")}><Copy size={15} /> Ashtakavarga</button><button className={activeTab === "transits" ? "active" : ""} onClick={() => setActiveTab("transits")}><Globe2 size={15} /> 过境</button></div>
+            {activeTab === "chart" && <div className="chart-tab"><div className="chart-tab-head"><div><span className="section-tag">{displayLabel} / NORTH INDIAN</span><h3>{displayLabel === "RASI / D1" ? "本命盘 Rasi" : `目标分盘 ${displayLabel}`}</h3></div><div className="chart-key"><span className="key-dot asc" /> As = Ascendant <span className="key-dot planet" /> 其余为行星缩写</div></div><div className="chart-layout-real"><NorthIndianChart items={displayChart ?? []} label={displayLabel} /><div className="chart-data"><ResultTable items={displayChart ?? []} /></div></div><div className="secondary-chart"><div><span className="section-tag">NAVAMSA / D9</span><p>Navamsa 已同步计算；选择 D-9 作为目标分盘可在主图中展开详细位置。</p></div><div className="mini-rasi">{result.navamsa.slice(0, 5).map(item => <span key={item.key}><b>{item.body === "Ascendant" ? "As" : item.body.slice(0, 2)}</b> {item.sign}</span>)}</div></div></div>}
+            {activeTab === "panchanga" && <div className="panchanga-grid"><div className="panchanga-hero"><Sun size={22} /><span className="section-tag">DAILY PANCHANGA</span><h3>{result.panchanga.weekday}</h3><p>以出生地点与时区计算的当天 Panchanga。</p></div><div className="panchanga-card"><span>Tithi</span><b>{result.panchanga.tithi.paksha} {result.panchanga.tithi.number}</b><small>结束 {result.panchanga.tithi.endTime}</small></div><div className="panchanga-card"><span>Nakshatra</span><b>{result.panchanga.nakshatra.name}</b><small>第 {result.panchanga.nakshatra.pada} pada · 结束 {result.panchanga.nakshatra.endTime}</small></div><div className="panchanga-card"><span>Sunrise</span><b>{result.panchanga.sunrise}</b><small>当地时间</small></div><div className="panchanga-card"><span>Sunset</span><b>{result.panchanga.sunset}</b><small>当地时间</small></div></div>}
+            {activeTab === "dasa" && <div className="dasa-panel"><div className="dasa-intro"><span className="section-tag">VIMSHOTTARI / 120 YEARS</span><h3>Mahadasa 时间轴</h3><p>按出生时月亮宿与当前参数计算。周期起止日为当地时间近似展示。</p></div><div className="dasa-list">{result.vimsottari.map((period, index) => <div className="dasa-row" key={`${period.lord}-${period.start}`}><span className="dasa-index">{String(index + 1).padStart(2, "0")}</span><b>{period.lord}</b><span>{period.start}</span><span>{period.end}</span><span className="dasa-years">{period.years} 年</span></div>)}</div></div>}
+            {activeTab === "strength" && <div className="strength-panel"><div className="dasa-intro"><span className="section-tag">SHADBALA / SIXFOLD STRENGTH</span><h3>行星六力</h3><p>按 PyJHora 的 Shadbala 模块计算。Rupa 是 Virupa ÷ 60；“达标”表示高于该行星最低所需强度。</p></div><div className="strength-list">{result.shadbala.map(score => <div className="strength-row" key={score.planet}><b>{score.planet}</b><div className="strength-track"><i style={{ width: `${Math.min(score.rupas / 10 * 100, 100)}%` }} /></div><span>{score.rupas.toFixed(2)} Rupa</span><span className={score.isStrong ? "strength-status good" : "strength-status"}>{score.isStrong ? "达标" : "较弱"}</span></div>)}</div></div>}
+            {activeTab === "ashtaka" && <AshtakavargaPanel scores={result.sarvashtakavarga} />}
+            {activeTab === "transits" && <div className="transit-panel"><div className="transit-intro"><Globe2 size={22} /><span className="section-tag">LIVE TRANSITS</span><h3>当前过境位置</h3><p>以输入地点的时区显示当前时间对应的恒星黄道位置；不与出生盘混合解释。</p></div><ResultTable items={result.transits.filter(item => item.body !== "Ascendant")} /></div>}
+            <div className="engine-foot"><span><span className="status-pulse" /> 已计算</span><span>{result.engine.name}</span><span>{result.engine.ayanamsa}</span><span>{result.input.calendar}</span><span>输入：{result.input.date} {result.input.time}</span></div>
+          </>}
         </section>
-
-        <section className="ticker" aria-label="项目摘要"><div>FREE WINDOWS SOFTWARE</div><div>→</div><div>WEB RECONSTRUCTION</div><div>→</div><div>CALCULATION / METHOD / EVIDENCE</div><div>→</div><div>WEB RECONSTRUCTION</div></section>
-
-        <section className="thesis-section section-pad" id="thesis">
-          <div className="section-index">02 <span>THE THESIS</span></div>
-          <div className="thesis-grid">
-            <div className="section-title"><p className="kicker">我们的判断</p><h2>不是把旧软件<br /><em>搬上网。</em></h2></div>
-            <div className="thesis-body"><p className="lead-paragraph">**可以做，而且值得做。** 但它真正的形态，不是一个被压扁的 Windows 窗口，而是一座让占星师能够保存、比较、验证并分享计算结果的数字天文台。</p><p>Jagannatha Hora 的难点从来不在画出一个菱形星盘。难点在于星历、地点、时区、分盘、Dasa 和数百条规则如何组成一条可信的计算链路。</p><div className="quote-mark">“</div><blockquote>把计算过程变成可见的证据，才能让 Web 版本真正服务于研究。</blockquote><div className="source-note"><span>READ THE FULL NOTE</span><a href="https://www.vedicastrologer.org/jh/features.htm" target="_blank" rel="noreferrer">VedicAstrologer.org <ExternalLink size={12} /></a></div></div>
-          </div>
-        </section>
-
-        <section className="feature-section" id="engine">
-          <div className="feature-image" style={{ backgroundImage: `url(${orbitImage})` }}><div className="image-label">THE ENGINE<br /><span>WHAT MAKES IT HARD</span></div></div>
-          <div className="feature-content"><div className="section-index">03 <span>THE ENGINE</span></div><p className="kicker">把复杂拆成三层</p><h2>从行星位置，<br /><em>到一份可信的判断。</em></h2><p className="section-intro">一个可用的 Web 版本，需要把计算、方法和呈现彼此分开，又让它们在同一张图表上相遇。</p><div className="feature-list">{features.map(({ label, title, detail, icon: Icon, tone }) => <div className={`feature-row ${tone}`} key={label}><div className="feature-icon"><Icon size={20} /></div><div><span className="mini-label">{label}</span><h3>{title}</h3><p>{detail}</p></div><ChevronRight className="feature-arrow" size={18} /></div>)}</div></div>
-        </section>
-
-        <section className="workspace-section section-pad" id="workspace">
-          <div className="section-index">04 <span>THE WORKSPACE</span></div>
-          <div className="workspace-heading"><div><div className="atlas-lockup"><img src={markImage} alt="" /><span>ATLAS SPECIMEN / 04</span></div><p className="kicker">可操作的原型</p><h2>先把一个结果，<br /><em>算清楚。</em></h2></div><p>输入一组出生资料，试着在图表上选择不同宫位。这里展示的是交互方向，不是最终的生产级星历计算器。</p></div>
-          <div className="workspace-grid">
-            <form className="input-panel" onSubmit={runDemo}><div className="panel-top"><span className="mini-label">CHART INPUT</span><span className="status-dot"><i /> READY</span></div><label>出生日期<input type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} /></label><div className="split-input"><label>当地时间<input type="time" value={birthTime} onChange={e => setBirthTime(e.target.value)} /></label><label>历法<select defaultValue="gregorian"><option value="gregorian">Gregorian</option><option value="julian">Julian</option></select></label></div><label>地点<input value={place} onChange={e => setPlace(e.target.value)} /></label><label>Ayanamsa<select defaultValue="lahiri"><option value="lahiri">Lahiri</option><option value="raman">Raman</option><option value="tropical">Tropical / none</option></select></label><button className="button button-primary full" type="submit">{submitted ? <><Check size={16} /> 已生成示例结果</> : <><Play size={15} /> 生成研究预览</>}</button><p className="form-note"><CircleHelp size={13} /> 当前为前端交互原型，尚未连接真实星历 API。</p></form>
-            <div className="chart-panel"><div className="panel-top"><div className="mode-tabs">{["Rasi / D1", "Navamsa / D9", "Panchanga"].map(mode => <button className={activeMode === mode ? "active" : ""} key={mode} onClick={() => setActiveMode(mode)}>{mode}</button>)}</div><span className="mini-label">PREVIEW</span></div><div className="chart-layout"><AstroChart selectedHouse={selectedHouse} onSelect={setSelectedHouse} /><div className="chart-readout"><span className="mini-label">SELECTED HOUSE</span><strong>{selectedHouse.toString().padStart(2, "0")}</strong><h3>{activeMode}</h3><p>{houseInsight}</p><div className="readout-rule" /><div className="readout-row"><span>METHOD</span><b>Lahiri</b></div><div className="readout-row"><span>STATUS</span><b className="verified">Prototype</b></div></div></div><div className="chart-foot"><span>Click any numbered node to inspect the research context.</span><span>SVG SPECIMEN / 360°</span></div></div>
-          </div>
-        </section>
-
-        <section className="risk-section"><div className="evidence-orbit" aria-hidden="true"><Orbit size={92} strokeWidth={0.6} /></div><div className="risk-art" style={{ backgroundImage: `url(${paperImage})` }}><div className="risk-art-label"><ShieldAlert size={17} /><span>READ BEFORE BUILD</span></div></div><div className="risk-content"><div className="section-index">05 <span>THE FRICTION</span></div><p className="kicker">真正的风险不在 UI</p><h2>先问清楚：<br /><em>谁拥有这套计算？</em></h2><p className="section-intro">Swiss Ephemeris、PyJHora 与原始 Jagannatha Hora 之间，存在不同的代码、数据与授权边界。商业化之前，许可证审查和结果黄金测试集必须先于漂亮的界面。</p><div className="risk-note"><Scale size={18} /><div><b>合规优先</b><p>AGPL 与专业许可证是两条不同的路。原型可以先展示交互，但生产版本必须完成依赖链核查。</p></div></div><a className="text-link" href="https://www.astro.com/swisseph/swephinfo_e.htm" target="_blank" rel="noreferrer">查看 Swiss Ephemeris 条款 <ExternalLink size={14} /></a></div></section>
-
-        <section className="roadmap-section section-pad" id="roadmap"><div className="section-index">06 <span>THE ROADMAP</span></div><div className="roadmap-header"><div><p className="kicker">不要从“大而全”开始</p><h2>先做一个<br /><em>垂直切片。</em></h2></div><div className="roadmap-note"><Timer size={18} /><p>每一步都应当回答一个问题：用户是否愿意持续使用它？</p></div></div><div className="phase-list">{phases.map(phase => <div className="phase-row" key={phase.n}><span className="phase-number">{phase.n}</span><div className="phase-main"><h3>{phase.title}</h3><p>{phase.copy}</p></div><span className={`phase-status ${phase.status === "现在" ? "current" : ""}`}>{phase.status}</span><ArrowUpRight size={18} className="phase-arrow" /></div>)}</div></section>
-
-        <section className="closing-section"><div className="closing-orbit"><Orbit size={64} strokeWidth={0.8} /></div><div className="closing-copy"><p className="kicker">A RESEARCH-FIRST ASTROLOGY WORKSPACE</p><h2>看见引擎<br /><em>之下的星盘。</em></h2><button className="button button-light" onClick={() => smoothTo("workspace")}>开始一次预览 <ArrowUpRight size={16} /></button></div><div className="closing-footer"><span className="footer-brand"><img src={markImage} alt="" />Vedic Web Atlas</span><span>Built for careful study.</span><span>© 2026</span></div></section>
       </main>
+      <footer className="app-footer"><span>Vedic Web Atlas</span><span>Calculation engine: PyJHora + Swiss Ephemeris</span><div><a href="https://github.com/naturalstupid/PyJHora" target="_blank" rel="noreferrer">PyJHora ↗</a><a href="https://www.astro.com/swisseph/swephinfo_e.htm" target="_blank" rel="noreferrer">Swiss Ephemeris License ↗</a></div></footer>
     </div>
   );
 }
