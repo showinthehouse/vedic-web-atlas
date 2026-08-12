@@ -164,11 +164,47 @@ docker compose down
 docker compose down -v
 ```
 
+### Docker Compose 冒烟验证
+
+在安装 Docker Engine 与 Docker Compose Plugin 的本机或服务器上，先复制并填写环境文件，再运行以下检查。命令会构建镜像、启动 MySQL、应用迁移并等待应用健康检查；最后的 `curl` 为 HTTP 可达性验证。确认无误后可用 `docker compose down` 停止容器；只有确实要清除本地数据库时才追加 `-v`。
+
+```bash
+cp environment.example .env
+# 编辑 .env，并替换 MYSQL_PASSWORD、MYSQL_ROOT_PASSWORD、JWT_SECRET
+docker compose up --build -d
+docker compose ps
+docker compose logs --tail=100 migrate app
+curl --fail --silent --show-error http://localhost:3000/ > /dev/null
+docker compose down
+```
+
 ## GitHub Actions
 
 `.github/workflows/ci.yml` 会在对 `main` 的推送与拉取请求中启动 MySQL 8.4 服务，安装 Node 22、Python 3.12、PyJHora、ReportLab 和中文字体，随后依次执行迁移、`pnpm test`、`pnpm check` 与 `pnpm build`。CI 所用数据库密码仅限临时测试服务，不能复制到部署环境。
 
 将仓库推送到 GitHub 后，可在仓库的 **Actions** 页面查看每次提交的验证结果；分支保护规则可要求该工作流通过后才允许合并。
+
+### 将 CI 设为 `main` 的合并必需检查
+
+分支保护属于 GitHub 仓库设置，不能由仓库内 YAML 直接启用。仓库管理员可进入 **Settings → Rules → Rulesets → New branch ruleset**，将目标分支设为 `main`，并启用“Require a pull request before merging”和“Require status checks to pass”。在必需检查列表中选择本项目工作流的作业名称 **`Test, type-check, and build`**；建议同时开启“Require branches to be up to date before merging”、阻止强制推送及阻止删除受保护分支。[3]
+
+### 发布 GitHub Container Registry 镜像
+
+`.github/workflows/publish-image.yml` 会在推送符合 `v*` 的 Git 标签时构建 Docker 镜像并推送至 GitHub Container Registry（GHCR）。它使用仓库默认的 `GITHUB_TOKEN` 和 `packages: write` 权限，无需将个人访问令牌提交到仓库。建议仅在 `main` 已通过 CI 后创建发布标签。
+
+```bash
+# 例如发布 1.0.0；请先确认 main 的 Verify 工作流为绿色。
+git checkout main
+git pull --ff-only
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+```
+
+成功后，镜像会使用 `1.0.0`、`1.0`、`1` 与 `latest` 标签，可按以下形式拉取。首次发布后，可在 GitHub 仓库右侧的 **Packages** 区域将容器包设置为公开或配置访问权限。
+
+```bash
+docker pull ghcr.io/<github-owner>/<repository>:1.0.0
+```
 
 ## 使用工作台
 
@@ -200,3 +236,5 @@ docker compose down -v
 [1] [PyJHora GitHub 仓库与许可信息](https://github.com/naturalstupid/PyJHora)
 
 [2] [Swiss Ephemeris 许可说明](https://www.astro.com/swisseph/swephinfo_e.htm)
+
+[3] [GitHub：管理规则集与受保护分支](https://docs.github.com/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets)

@@ -81,3 +81,5 @@
 - [x] 添加 docker-compose.yml，一键启动 Vedic Web Atlas 与 MySQL 并执行健康检查
 - [x] 添加 .env.example 所需的安全部署变量参考（受托管环境限制，用户已确认采用等效 environment.example；使用 cp environment.example .env）
 - [x] 添加 environment.example 作为可复制为 .env 的安全配置参考模板，并在 README/Compose 中引用
+- [x] 添加容器镜像标签构建与推送工作流，发布至 GitHub Container Registry
+- [x] 在 README 中补充 GitHub 分支保护、Docker Compose 冒烟验证及镜像发布标签的操作步骤
