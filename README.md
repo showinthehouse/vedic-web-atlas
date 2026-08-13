@@ -211,6 +211,8 @@ git push origin v1.0.0
 docker pull ghcr.io/<github-owner>/<repository>:1.0.0
 ```
 
+为独立确认镜像已可从注册表读取，仓库还提供手动触发的 **Verify GHCR image** 工作流。在 **Actions → Verify GHCR image → Run workflow** 中输入 `1.0.0`，该工作流会使用仓库令牌登录 GHCR、拉取 `ghcr.io/<github-owner>/<repository>:1.0.0` 并输出镜像 digest。
+
 ## 使用工作台
 
 首先输入出生日期、当地时间、性别和出生地点。地点输入框优先使用中国城市轻量索引；选中城市后会回填坐标、IANA 时区和相应时点的 UTC 偏移。也可以手动填写纬度、经度和时区。点击“生成真实印度占星报告”后，可在标签页中查看星盘、Panchanga、Dasa、Yoga、Muhurta、Shadbala、Ashtakavarga 和过境。
