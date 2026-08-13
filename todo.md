@@ -92,3 +92,5 @@
 - [x] 将当前已保存源码通过独立 github 远程推送至 showinthehouse/vedic-web-atlas 的 main 分支
 - [x] 确认“星历计算未能完成，请稍后重试”属于未复现的瞬态失败，并以 Chennai 样例验证重试恢复真实计算
 - [ ] 修复 GitHub Actions 中 pnpm/action-setup 与 package.json packageManager 的版本冲突，并验证 Verify 通过
+- [ ] 核对用户推送后的最新 Verify 运行，确认 pnpm 10.4.1 修复已生效
+- [x] 研究 CNWU16/vedic-astro-skills 的功能逻辑、许可与依赖边界，并评估可安全采纳部分（见 docs/vedic-astro-skills-comparison.md）
