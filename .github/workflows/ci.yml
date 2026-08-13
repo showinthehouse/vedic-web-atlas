@@ -16,6 +16,7 @@ jobs:
     timeout-minutes: 20
     env:
       NODE_ENV: test
+      PYTHON_BIN: python
       DATABASE_URL: mysql://vedic_app:vedic_ci_password@127.0.0.1:3306/vedic_atlas
       JWT_SECRET: ci-only-not-for-production
     services:

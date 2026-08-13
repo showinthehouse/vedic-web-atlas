@@ -94,3 +94,4 @@
 - [ ] 修复 GitHub Actions 中 pnpm/action-setup 与 package.json packageManager 的版本冲突，并验证 Verify 通过
 - [ ] 核对用户推送后的最新 Verify 运行，确认 pnpm 10.4.1 修复已生效
 - [x] 研究 CNWU16/vedic-astro-skills 的功能逻辑、许可与依赖边界，并评估可安全采纳部分（见 docs/vedic-astro-skills-comparison.md）
+- [ ] 统一 GitHub CI 与服务端/测试的 Python 解释器选择，修复星历和城市查询子进程在 CI 中的退出错误

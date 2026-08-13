@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { makeRequest, type GeocodingResult } from "./_core/map";
+import { getPythonExecutable } from "./pythonRuntime";
 
 type CalendarType = "GREGORIAN" | "JULIAN";
 
@@ -23,7 +24,7 @@ type TimezoneResolution = {
 async function runTimezoneResolver(input: TimezoneInput): Promise<TimezoneResolution> {
   const scriptPath = new URL("../scripts/resolve_timezone.py", import.meta.url).pathname;
   return await new Promise<TimezoneResolution>((resolve, reject) => {
-    const child = spawn("python3", [scriptPath], { stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(getPythonExecutable(), [scriptPath], { stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => child.kill("SIGKILL"), 12_000);
@@ -62,7 +63,7 @@ function decodeChinaPlaceId(placeId: string): OfflineCity | null {
 async function runChinaCityLookup(query: string) {
   const scriptPath = new URL("../scripts/china_city_lookup.py", import.meta.url).pathname;
   return await new Promise<{ results?: OfflineCity[] }>((resolve, reject) => {
-    const child = spawn("python3", [scriptPath], { stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(getPythonExecutable(), [scriptPath], { stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => child.kill("SIGKILL"), 3_000);
@@ -90,7 +91,7 @@ async function runChinaCityLookup(query: string) {
 async function runCityLookup(payload: { action: "search"; query: string } | { action: "resolve"; placeName: string }) {
   const scriptPath = new URL("../scripts/city_lookup.py", import.meta.url).pathname;
   return await new Promise<{ results?: OfflineCity[]; result?: OfflineCity | null }>((resolve, reject) => {
-    const child = spawn("python3", [scriptPath], { stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, PYTHONWARNINGS: "ignore::SyntaxWarning" } });
+    const child = spawn(getPythonExecutable(), [scriptPath], { stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, PYTHONWARNINGS: "ignore::SyntaxWarning" } });
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => child.kill("SIGKILL"), 10_000);

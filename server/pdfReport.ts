@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { withProcessRetry } from "./processRetry";
+import { getPythonExecutable } from "./pythonRuntime";
 
 const PDF_TIMEOUT_MS = 25_000;
 const PDF_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
@@ -41,7 +42,7 @@ export function isRetryablePdfFailure(error: unknown): error is PdfReportError {
 async function createPdfReportOnce(payload: unknown) {
   const scriptPath = new URL("../scripts/pdf_report.py", import.meta.url).pathname;
   return new Promise<{ filename: string; base64: string }>((resolve, reject) => {
-    const child = spawn("python3", [scriptPath], { stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(getPythonExecutable(), [scriptPath], { stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     let settled = false;

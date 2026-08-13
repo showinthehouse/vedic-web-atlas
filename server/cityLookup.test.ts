@@ -1,10 +1,11 @@
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
+import { getPythonExecutable } from "./pythonRuntime";
 
 describe("offline city lookup", () => {
   it("uses the bundled CSV and returns Chennai without a GitHub download", () => {
     const scriptPath = new URL("../scripts/city_lookup.py", import.meta.url).pathname;
-    const result = spawnSync("python3", [scriptPath], {
+    const result = spawnSync(getPythonExecutable(), [scriptPath], {
       input: JSON.stringify({ action: "search", query: "Chennai" }),
       encoding: "utf8",
       env: { ...process.env, PYTHONWARNINGS: "ignore::SyntaxWarning" },

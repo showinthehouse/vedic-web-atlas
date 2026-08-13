@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { withProcessRetry } from "./processRetry";
+import { getPythonExecutable } from "./pythonRuntime";
 
 export type VedicInput = {
   date: string;
@@ -61,7 +62,7 @@ export function isRetryableVedicFailure(error: unknown): error is VedicEngineErr
 async function runVedicEngineOnce(input: unknown) {
   const scriptPath = new URL("../scripts/vedic_engine.py", import.meta.url).pathname;
   const { stdout, stderr } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-    const child = spawn("python3", [scriptPath], { stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(getPythonExecutable(), [scriptPath], { stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     let settled = false;
