@@ -172,3 +172,11 @@ Python 星历与 PDF 生成器现在均具有 25 秒硬超时、受限 stdout �
 在已登录的档案侧栏中，使用受控网络中断提交名为“健壮性恢复临时档案”的保存请求。页面展示“档案操作未完成：请稍后重试。”，未泄露 `profile list offline` 等英文传输异常，且名称输入仍被保留。恢复网络后再次点击“保存当前资料”，侧栏从 2 份档案刷新为 3 份并显示新档案，证明 CRUD 失败不丢失输入、用户可按原操作重试且成功后列表自动刷新。
 
 在获得用户明确确认后，测试档案已由工作台删除；列表回到原有 2 份档案。自动化方面，`server/profiles.gender.test.ts` 新增受保护 `profiles.list` 路由的数据库不可用回归，确认 `DatabaseUnavailableError` 会在 tRPC 边界保持“数据库连接暂时不稳定，请稍后重试。”这一中文安全信息。
+
+## 2026-08-13：星历计算瞬态失败恢复确认
+
+用户报告页面提示“星历计算未能完成，请稍后重试。”后，未能在当前会话或服务端日志中复现 Python 崩溃、超时、异常退出或协议格式错误。使用默认 Chennai 校验输入（`1996-12-07 10:34`、`13.0878, 80.2785`、UTC `+5.5`、Lahiri、D-1）重新提交，`/api/trpc/astrology.calculate` 返回 HTTP 200，网络记录时长约 802 ms；浏览器成功渲染 Rasi、Navamsa、完整行星位置及 PDF 设置入口。该事件因此记录为已由现有输入保留与重试路径恢复的瞬态失败，而非已定位的计算规则缺陷。
+
+## 2026-08-13：GitHub 同步与首次 Verify 失败根因
+
+当前源码已推送到 [showinthehouse/vedic-web-atlas](https://github.com/showinthehouse/vedic-web-atlas) 的 `main` 分支，提交为 `572cf155c20f577bee836281736f2edca0c50cdf`。GitHub Actions 的首次 `Verify #1` 在 2026-08-13 00:13 UTC 完成但失败，失败于 `Set up pnpm`。公开 Check Run 注释明确指出 `pnpm/action-setup` 配置的 `version: 10` 与 `package.json` 的 `packageManager: pnpm@10.4.1+...` 同时存在且版本不一致。工作流已改为明确使用 `version: 10.4.1`；待将此修复推送到 GitHub 后验证下一次 Verify 通过。

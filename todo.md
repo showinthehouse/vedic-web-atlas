@@ -83,3 +83,12 @@
 - [x] 添加 environment.example 作为可复制为 .env 的安全配置参考模板，并在 README/Compose 中引用
 - [x] 添加容器镜像标签构建与推送工作流，发布至 GitHub Container Registry
 - [x] 在 README 中补充 GitHub 分支保护、Docker Compose 冒烟验证及镜像发布标签的操作步骤
+- [x] 导出项目至指定 GitHub 仓库，并确认远程仓库和 Actions 工作流可用
+- [ ] 在 GitHub 的 main 分支保护中将 Verify 工作流设为合并必需检查
+- [ ] 在具备 Docker 的运行环境执行 docker compose 冒烟验证并记录结果
+- [ ] 推送 v1.0.0 标签，确认 GHCR 镜像构建、发布和拉取成功
+- [x] 核对 https://github.com/showinthehouse/vedic-web-atlas.git 的 main 分支已接收当前源码与发布工作流
+- [x] 复核用户确认连接后的 GitHub 仓库状态，排除浏览器缓存或同步延迟
+- [x] 将当前已保存源码通过独立 github 远程推送至 showinthehouse/vedic-web-atlas 的 main 分支
+- [x] 确认“星历计算未能完成，请稍后重试”属于未复现的瞬态失败，并以 Chennai 样例验证重试恢复真实计算
+- [ ] 修复 GitHub Actions 中 pnpm/action-setup 与 package.json packageManager 的版本冲突，并验证 Verify 通过
