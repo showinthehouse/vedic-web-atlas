@@ -86,8 +86,8 @@
 - [x] 导出项目至指定 GitHub 仓库，并确认远程仓库和 Actions 工作流可用
 - [x] 在 GitHub 的 main 分支保护中将 Verify 工作流设为合并必需检查
 - [x] 在具备 Docker 的运行环境执行 docker compose 冒烟验证并记录结果（GitHub Actions run 31657193012：构建、MySQL、迁移、应用健康检查和 HTTP 验证全部成功）
-- [ ] 推送 v1.0.0 标签，确认 GHCR 镜像构建、发布和拉取成功
-- [ ] 新增 GitHub Runner 上的 GHCR 拉取验证工作流，并实际拉取 v1.0.0 镜像确认可用
+- [x] 推送 v1.0.0 标签，确认 GHCR 镜像构建、发布和拉取成功（发布 run 31657360805、拉取验证 run 31658414518 均成功）
+- [x] 新增 GitHub Runner 上的 GHCR 拉取验证工作流，并实际拉取 v1.0.0 镜像确认可用（已整合至 Docker Compose smoke；run 31658414518 成功）
 - [x] 核对 https://github.com/showinthehouse/vedic-web-atlas.git 的 main 分支已接收当前源码与发布工作流
 - [x] 复核用户确认连接后的 GitHub 仓库状态，排除浏览器缓存或同步延迟
 - [x] 将当前已保存源码通过独立 github 远程推送至 showinthehouse/vedic-web-atlas 的 main 分支
