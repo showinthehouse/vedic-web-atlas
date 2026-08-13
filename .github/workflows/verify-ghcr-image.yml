@@ -1,13 +1,7 @@
-name: Verify GHCR image
+name: Verify GHCR image v1.0.0
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: Image tag to pull and inspect
-        required: true
-        default: "1.0.0"
-        type: string
 
 permissions:
   contents: read
@@ -29,7 +23,7 @@ jobs:
 
       - name: Pull published image
         env:
-          IMAGE_TAG: ${{ inputs.tag }}
+          IMAGE_TAG: "1.0.0"
         run: |
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:${IMAGE_TAG}"
           docker pull "$IMAGE"
