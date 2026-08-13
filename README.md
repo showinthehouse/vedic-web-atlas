@@ -211,7 +211,7 @@ git push origin v1.0.0
 docker pull ghcr.io/<github-owner>/<repository>:1.0.0
 ```
 
-为独立确认首个发布镜像已可从注册表读取，仓库还提供手动触发的 **Verify GHCR image v1.0.0** 工作流。选择 **Actions → Verify GHCR image v1.0.0 → Run workflow** 后，该工作流会使用仓库令牌登录 GHCR、拉取 `ghcr.io/<github-owner>/<repository>:1.0.0` 并输出镜像 digest。
+为独立确认首个发布镜像已可从注册表读取，手动触发 **Docker Compose smoke** 工作流即可完成两类验证：它会构建并启动应用栈，同时使用仓库令牌登录 GHCR、拉取 `ghcr.io/<github-owner>/<repository>:1.0.0` 并输出镜像 digest。
 
 ## 使用工作台
 

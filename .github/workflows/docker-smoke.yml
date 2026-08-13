@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   compose-smoke:
@@ -28,6 +29,19 @@ jobs:
 
       - name: Verify application response
         run: curl --fail --retry 5 --retry-connrefused --retry-delay 2 http://127.0.0.1:3000/
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Pull and inspect published v1.0.0 image
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:1.0.0"
+          docker pull "$IMAGE"
+          docker image inspect "$IMAGE" --format 'Pulled image digest: {{index .RepoDigests 0}}'
 
       - name: Collect Compose diagnostics on failure
         if: failure()
