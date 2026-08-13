@@ -95,3 +95,4 @@
 - [ ] 核对用户推送后的最新 Verify 运行，确认 pnpm 10.4.1 修复已生效
 - [x] 研究 CNWU16/vedic-astro-skills 的功能逻辑、许可与依赖边界，并评估可安全采纳部分（见 docs/vedic-astro-skills-comparison.md）
 - [ ] 统一 GitHub CI 与服务端/测试的 Python 解释器选择，修复星历和城市查询子进程在 CI 中的退出错误
+- [ ] 为 GitHub CI 与 Docker 构建显式安装 PyJHora ephe 星历数据，避免 PyPI 发行包缺少文件导致真实计算退出

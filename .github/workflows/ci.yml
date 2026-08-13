@@ -59,8 +59,9 @@ jobs:
           sudo apt-get install -y fonts-wqy-zenhei
           python -m pip install --upgrade pip
           python -m pip install \
-            PyJHora pyswisseph geocoder geopy numpy pytz requests \
+            PyJHora==4.8.7 pyswisseph geocoder geopy numpy pytz requests \
             timezonefinder reverse_geocode reportlab
+          python scripts/install_pyjhora_ephe.py
 
       - name: Install Node.js dependencies
         run: pnpm install --frozen-lockfile
