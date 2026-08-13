@@ -85,8 +85,9 @@
 - [x] 在 README 中补充 GitHub 分支保护、Docker Compose 冒烟验证及镜像发布标签的操作步骤
 - [x] 导出项目至指定 GitHub 仓库，并确认远程仓库和 Actions 工作流可用
 - [x] 在 GitHub 的 main 分支保护中将 Verify 工作流设为合并必需检查
-- [ ] 在具备 Docker 的运行环境执行 docker compose 冒烟验证并记录结果
+- [x] 在具备 Docker 的运行环境执行 docker compose 冒烟验证并记录结果（GitHub Actions run 31657193012：构建、MySQL、迁移、应用健康检查和 HTTP 验证全部成功）
 - [ ] 推送 v1.0.0 标签，确认 GHCR 镜像构建、发布和拉取成功
+- [ ] 新增 GitHub Runner 上的 GHCR 拉取验证工作流，并实际拉取 v1.0.0 镜像确认可用
 - [x] 核对 https://github.com/showinthehouse/vedic-web-atlas.git 的 main 分支已接收当前源码与发布工作流
 - [x] 复核用户确认连接后的 GitHub 仓库状态，排除浏览器缓存或同步延迟
 - [x] 将当前已保存源码通过独立 github 远程推送至 showinthehouse/vedic-web-atlas 的 main 分支
@@ -96,6 +97,6 @@
 - [x] 研究 CNWU16/vedic-astro-skills 的功能逻辑、许可与依赖边界，并评估可安全采纳部分（见 docs/vedic-astro-skills-comparison.md）
 - [x] 统一 GitHub CI 与服务端/测试的 Python 解释器选择，修复星历和城市查询子进程在 CI 中的退出错误
 - [x] 为 GitHub CI 与 Docker 构建显式安装 PyJHora ephe 星历数据，避免 PyPI 发行包缺少文件导致真实计算退出
-- [ ] 在 GitHub CI 与 Docker 显式安装 python-dateutil，修复 PyJHora 导入阶段缺失 dateutil 导致的星历子进程退出
-- [ ] 新增 GitHub 托管 Docker Compose 冒烟工作流，并通过容器健康检查验证应用与 MySQL 协同启动
-- [ ] 添加 .dockerignore，避免 Docker Compose 冒烟构建携带 node_modules、dist、日志和本地环境文件
+- [x] 在 GitHub CI 与 Docker 显式安装 python-dateutil，修复 PyJHora 导入阶段缺失 dateutil 导致的星历子进程退出
+- [x] 新增 GitHub 托管 Docker Compose 冒烟工作流，并通过容器健康检查验证应用与 MySQL 协同启动（GitHub Actions run 31657193012 成功）
+- [x] 添加 .dockerignore，避免 Docker Compose 冒烟构建携带 node_modules、dist、日志和本地环境文件
