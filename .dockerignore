@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.git/
+.manus-logs/
+coverage/
+.env
+.env.*
+!environment.example
+*.log
+*.pyc
+__pycache__/
+.DS_Store

@@ -84,16 +84,18 @@
 - [x] 添加容器镜像标签构建与推送工作流，发布至 GitHub Container Registry
 - [x] 在 README 中补充 GitHub 分支保护、Docker Compose 冒烟验证及镜像发布标签的操作步骤
 - [x] 导出项目至指定 GitHub 仓库，并确认远程仓库和 Actions 工作流可用
-- [ ] 在 GitHub 的 main 分支保护中将 Verify 工作流设为合并必需检查
+- [x] 在 GitHub 的 main 分支保护中将 Verify 工作流设为合并必需检查
 - [ ] 在具备 Docker 的运行环境执行 docker compose 冒烟验证并记录结果
 - [ ] 推送 v1.0.0 标签，确认 GHCR 镜像构建、发布和拉取成功
 - [x] 核对 https://github.com/showinthehouse/vedic-web-atlas.git 的 main 分支已接收当前源码与发布工作流
 - [x] 复核用户确认连接后的 GitHub 仓库状态，排除浏览器缓存或同步延迟
 - [x] 将当前已保存源码通过独立 github 远程推送至 showinthehouse/vedic-web-atlas 的 main 分支
 - [x] 确认“星历计算未能完成，请稍后重试”属于未复现的瞬态失败，并以 Chennai 样例验证重试恢复真实计算
-- [ ] 修复 GitHub Actions 中 pnpm/action-setup 与 package.json packageManager 的版本冲突，并验证 Verify 通过
-- [ ] 核对用户推送后的最新 Verify 运行，确认 pnpm 10.4.1 修复已生效
+- [x] 修复 GitHub Actions 中 pnpm/action-setup 与 package.json packageManager 的版本冲突，并验证 Verify 通过
+- [x] 核对用户推送后的最新 Verify 运行，确认 pnpm 10.4.1 修复已生效
 - [x] 研究 CNWU16/vedic-astro-skills 的功能逻辑、许可与依赖边界，并评估可安全采纳部分（见 docs/vedic-astro-skills-comparison.md）
-- [ ] 统一 GitHub CI 与服务端/测试的 Python 解释器选择，修复星历和城市查询子进程在 CI 中的退出错误
-- [ ] 为 GitHub CI 与 Docker 构建显式安装 PyJHora ephe 星历数据，避免 PyPI 发行包缺少文件导致真实计算退出
+- [x] 统一 GitHub CI 与服务端/测试的 Python 解释器选择，修复星历和城市查询子进程在 CI 中的退出错误
+- [x] 为 GitHub CI 与 Docker 构建显式安装 PyJHora ephe 星历数据，避免 PyPI 发行包缺少文件导致真实计算退出
 - [ ] 在 GitHub CI 与 Docker 显式安装 python-dateutil，修复 PyJHora 导入阶段缺失 dateutil 导致的星历子进程退出
+- [ ] 新增 GitHub 托管 Docker Compose 冒烟工作流，并通过容器健康检查验证应用与 MySQL 协同启动
+- [ ] 添加 .dockerignore，避免 Docker Compose 冒烟构建携带 node_modules、dist、日志和本地环境文件

@@ -1,0 +1,38 @@
+name: Docker Compose smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compose-smoke:
+    name: Build and start application stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      MYSQL_DATABASE: vedic_atlas
+      MYSQL_USER: vedic_app
+      MYSQL_PASSWORD: smoke_only_database_password
+      MYSQL_ROOT_PASSWORD: smoke_only_root_password
+      JWT_SECRET: smoke-only-not-for-production
+      APP_PORT: 3000
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build and start Compose stack
+        run: docker compose --project-name vedic-atlas-smoke up --build --wait --wait-timeout 240
+
+      - name: Verify application response
+        run: curl --fail --retry 5 --retry-connrefused --retry-delay 2 http://127.0.0.1:3000/
+
+      - name: Collect Compose diagnostics on failure
+        if: failure()
+        run: docker compose --project-name vedic-atlas-smoke logs --no-color
+
+      - name: Remove Compose resources
+        if: always()
+        run: docker compose --project-name vedic-atlas-smoke down --volumes --remove-orphans
