@@ -56,8 +56,9 @@ python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install --upgrade pip
 python3 -m pip install \
-  PyJHora pyswisseph geocoder geopy numpy pytz requests \
+  PyJHora==4.8.7 pyswisseph python-dateutil geocoder geopy numpy pytz requests \
   timezonefinder reverse_geocode reportlab
+python3 scripts/install_pyjhora_ephe.py
 ```
 
 在 Ubuntu/Debian 上，为保证 PDF 中文可读，安装文泉驿字体：
@@ -177,6 +178,10 @@ docker compose logs --tail=100 migrate app
 curl --fail --silent --show-error http://localhost:3000/ > /dev/null
 docker compose down
 ```
+
+### GitHub 托管的 Compose 冒烟验证
+
+仓库包含手动触发的 **Docker Compose smoke** 工作流，可在 GitHub 托管 Ubuntu Runner 上构建完整镜像、启动 MySQL、执行迁移并等待应用 HTTP 健康检查。该工作流使用仅限测试的数据库密码，不会读取或输出部署密钥。推送包含该工作流的提交后，在 **Actions → Docker Compose smoke → Run workflow** 中选择 `main` 并执行；完成后查看“Build and start Compose stack”与“Verify application response”两个步骤均为绿色。
 
 ## GitHub Actions
 
