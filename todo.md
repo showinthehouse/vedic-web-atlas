@@ -100,3 +100,7 @@
 - [x] 在 GitHub CI 与 Docker 显式安装 python-dateutil，修复 PyJHora 导入阶段缺失 dateutil 导致的星历子进程退出
 - [x] 新增 GitHub 托管 Docker Compose 冒烟工作流，并通过容器健康检查验证应用与 MySQL 协同启动（GitHub Actions run 31657193012 成功）
 - [x] 添加 .dockerignore，避免 Docker Compose 冒烟构建携带 node_modules、dist、日志和本地环境文件
+- [x] 设计 Hugging Face Docker Space 无状态演示版部署路径，保留真实计算与 PDF 即时下载并禁用用户档案持久化（已停止：当前新建 Docker Space 需要付费账户）
+- [ ] 将无状态演示版部署到 Hugging Face Space showinthehouse/VedicWebAtlas，并验证公开访问与真实计算（已取消：用户决定不采用付费 Docker Space；未执行）
+- [ ] 评估无需 Hugging Face 付费账户的完整后端部署替代方案，包括免费云 VM 与本地自托管隧道
+- [ ] 将 GHCR 发布工作流扩展为 linux/amd64 与 linux/arm64 多架构构建，并验证 v1.0.0 镜像清单

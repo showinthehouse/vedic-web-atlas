@@ -23,6 +23,11 @@ jobs:
       - name: Check out release tag
         uses: actions/checkout@v4
 
+      - name: Set up QEMU for ARM64
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -51,5 +56,17 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Verify multi-architecture image manifest
+        run: |
+          docker buildx imagetools inspect \
+            "ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}" \
+            --raw \
+            | jq -e '
+              .manifests
+              | map(.platform.os + "/" + .platform.architecture)
+              | (index("linux/amd64") != null and index("linux/arm64") != null)
+            '

@@ -205,10 +205,13 @@ git tag -a v1.0.0 -m "Release v1.0.0"
 git push origin v1.0.0
 ```
 
-成功后，镜像会使用 `1.0.0`、`1.0`、`1` 与 `latest` 标签，可按以下形式拉取。首次发布后，可在 GitHub 仓库右侧的 **Packages** 区域将容器包设置为公开或配置访问权限。
+成功后，镜像会使用 `1.0.0`、`1.0`、`1` 与 `latest` 标签，并为每个标签发布 `linux/amd64` 和 `linux/arm64` 两种架构的清单。Docker 会根据宿主机架构自动选择对应镜像；首次发布后，可在 GitHub 仓库右侧的 **Packages** 区域将容器包设置为公开或配置访问权限。
 
 ```bash
 docker pull ghcr.io/<github-owner>/<repository>:1.0.0
+
+# 查看标签是否同时包含 AMD64 与 ARM64。
+docker buildx imagetools inspect ghcr.io/<github-owner>/<repository>:1.0.0
 ```
 
 为独立确认首个发布镜像已可从注册表读取，手动触发 **Docker Compose smoke** 工作流即可完成两类验证：它会构建并启动应用栈，同时使用仓库令牌登录 GHCR、拉取 `ghcr.io/<github-owner>/<repository>:1.0.0` 并输出镜像 digest。
